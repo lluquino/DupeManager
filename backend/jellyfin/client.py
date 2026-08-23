@@ -12,7 +12,7 @@ class JellyfinClient:
         self.base_url = settings.jellyfin_url.rstrip("/")
         self.api_key = settings.jellyfin_api_key
         self.headers = {
-            "X-Emby-Authorization": 'DupeManager, Version="1.0.0"',
+            "X-Emby-Authorization": 'MediaBrowser Client="DupeManager", Device="Linux", DeviceId="dupemanager", Version="1.0.0"',
             "Content-Type": "application/json",
         }
 

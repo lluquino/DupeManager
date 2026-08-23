@@ -75,7 +75,17 @@ class ScanQueue:
         self._result = None
         self._error = None
         
-        # Ejecutar escaneo
+        # Lanzar escaneo en background (no bloquea)
+        asyncio.create_task(self._run_scan(jellyfin_token))
+        
+        return {
+            "status": "started",
+            "progress": 0,
+            "message": "Iniciando escaneo...",
+        }
+    
+    async def _run_scan(self, jellyfin_token: str):
+        """Ejecuta el escaneo en background"""
         try:
             self._result = await run_full_scan(
                 jellyfin_token,
@@ -88,14 +98,6 @@ class ScanQueue:
             self._message = f"Error: {e}"
         finally:
             self._running = False
-        
-        return {
-            "status": "completed" if not self._error else "error",
-            "progress": self._progress,
-            "message": self._message,
-            "result": self._result,
-            "error": self._error,
-        }
     
     def get_status(self) -> dict:
         """Obtiene el estado actual de la cola"""
