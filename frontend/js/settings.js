@@ -383,8 +383,14 @@ const Settings = {
                     <div class="text-slate-300 truncate" title="${f.path}">${f.name}</div>
                     <div class="text-slate-500 text-xs truncate" title="${f.path}">${f.path.substring(0, f.path.lastIndexOf('/') + 1)}</div>
                 </div>
-                <span class="text-slate-400 ml-4 whitespace-nowrap mr-2">${this.formatSize(f.size)}</span>
-                <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="flex items-center gap-3 ml-4">
+                    <span class="text-slate-400 whitespace-nowrap">${this.formatSize(f.size)}</span>
+                    ${f.deleteToday
+                        ? `<span class="text-xs px-2 py-0.5 rounded bg-orange-900/30 text-orange-400 whitespace-nowrap" title="Se eliminará a las ${f.deleteTime}">⏰ Hoy ${f.deleteTime}</span>`
+                        : `<span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 whitespace-nowrap">${f.timeRemaining}</span>`
+                    }
+                </div>
+                <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                     <button onclick="Settings.restoreTrashFile('${f.path.replace(/'/g, "\\'")}')"
                         class="text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/40"
                         title="Restaurar a ubicación original">

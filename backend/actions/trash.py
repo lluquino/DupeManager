@@ -172,10 +172,10 @@ def get_trash_info(trash_path: str = None) -> dict:
 
 def list_trash_files(trash_path: str = None) -> list[dict]:
     """
-    Lista los archivos en la papelera con su tamaño.
+    Lista los archivos en la papelera con su tamaño y tiempo hasta borrado.
     
     Returns:
-        Lista de dicts con name, path, size, modified
+        Lista de dicts con name, path, size, modified, deleteAt, timeRemaining
     """
     if trash_path is None:
         trash_path = settings.trash_path
@@ -185,25 +185,81 @@ def list_trash_files(trash_path: str = None) -> list[dict]:
     if not os.path.exists(trash_path):
         return files
     
+    # Get retention settings
+    retention_value = settings.trash_retention_value
+    retention_unit = settings.trash_retention_unit
+    
+    # Calculate retention in seconds
+    unit_seconds = {
+        "minutes": 60,
+        "hours": 3600,
+        "days": 86400,
+        "weeks": 604800,
+        "months": 2592000,  # 30 days
+    }
+    retention_seconds = retention_value * unit_seconds.get(retention_unit, 86400)
+    
+    now = datetime.now(timezone.utc)
+    
     for root, dirs, filenames in os.walk(trash_path):
         for name in filenames:
             filepath = os.path.join(root, name)
             try:
                 size = os.path.getsize(filepath)
                 mtime = os.path.getmtime(filepath)
-                # Get relative path from trash root
+                modified = datetime.fromtimestamp(mtime, tz=timezone.utc)
                 rel_path = os.path.relpath(filepath, trash_path)
+                
+                # Calculate deletion time
+                delete_at = modified + timedelta(seconds=retention_seconds)
+                
+                # Calculate time remaining
+                time_remaining = delete_at - now
+                remaining_seconds = max(0, time_remaining.total_seconds())
+                
+                # Format time remaining
+                if remaining_seconds <= 0:
+                    time_remaining_str = "Borrado pronto"
+                elif remaining_seconds < 3600:
+                    minutes = int(remaining_seconds // 60)
+                    time_remaining_str = f"{minutes} min"
+                elif remaining_seconds < 86400:
+                    hours = int(remaining_seconds // 3600)
+                    time_remaining_str = f"{hours}h"
+                else:
+                    days = int(remaining_seconds // 86400)
+                    if days >= 30:
+                        months = days // 30
+                        remaining_days = days % 30
+                        if remaining_days > 0:
+                            time_remaining_str = f"{months}m {remaining_days}d"
+                        else:
+                            time_remaining_str = f"{months} meses"
+                    elif days >= 7:
+                        weeks = days // 7
+                        remaining_days = days % 7
+                        if remaining_days > 0:
+                            time_remaining_str = f"{weeks}sem {remaining_days}d"
+                        else:
+                            time_remaining_str = f"{weeks} semanas"
+                    else:
+                        time_remaining_str = f"{days} días"
+                
                 files.append({
                     "name": name,
                     "path": rel_path,
                     "size": size,
-                    "modified": datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat(),
+                    "modified": modified.isoformat(),
+                    "deleteAt": delete_at.isoformat(),
+                    "timeRemaining": time_remaining_str,
+                    "deleteToday": delete_at.date() == now.date(),
+                    "deleteTime": delete_at.strftime("%H:%M") if delete_at.date() == now.date() else None,
                 })
             except (OSError, IOError):
                 pass
     
-    # Sort by modified date (newest first)
-    files.sort(key=lambda f: f["modified"], reverse=True)
+    # Sort by deletion time (soonest first)
+    files.sort(key=lambda f: f["deleteAt"])
     
     return files
 
