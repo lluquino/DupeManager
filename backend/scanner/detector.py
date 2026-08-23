@@ -113,6 +113,13 @@ async def scan_episodes(
     
     stats["groups"] = len(duplicate_groups)
     
+    # Guardar group_ids que estaban ignorados ANTES de limpiar
+    ignored_query = select(EpisodeDuplicate.group_id).where(
+        EpisodeDuplicate.status == DuplicateStatus.IGNORED
+    )
+    ignored_result = await session.execute(ignored_query)
+    previously_ignored = set(row[0] for row in ignored_result.all())
+    
     # Limpiar grupos existentes de episodios
     await session.execute(delete(EpisodeCopy))
     await session.execute(delete(EpisodeDuplicate))
@@ -129,6 +136,9 @@ async def scan_episodes(
         
         group_id = generate_group_id(norm_series, season, episode)
         
+        # Si este grupo estaba ignorado antes, mantener ese estado
+        status = DuplicateStatus.IGNORED if group_id in previously_ignored else DuplicateStatus.PENDING
+        
         # Crear grupo
         group = EpisodeDuplicate(
             group_id=group_id,
@@ -138,7 +148,7 @@ async def scan_episodes(
             normalized_series=norm_series,
             season=season,
             episode=episode,
-            status=DuplicateStatus.PENDING,
+            status=status,
         )
         session.add(group)
         await session.flush()  # Para obtener el ID
@@ -252,6 +262,13 @@ async def scan_movies(
     
     stats["groups"] = len(duplicate_groups)
     
+    # Guardar group_ids que estaban ignorados ANTES de limpiar
+    ignored_query = select(MovieDuplicateModel.group_id).where(
+        MovieDuplicateModel.status == DuplicateStatus.IGNORED
+    )
+    ignored_result = await session.execute(ignored_query)
+    previously_ignored_movies = set(row[0] for row in ignored_result.all())
+    
     # Limpiar grupos existentes de películas
     await session.execute(delete(MovieCopy))
     await session.execute(delete(MovieDuplicateModel))
@@ -265,13 +282,16 @@ async def scan_movies(
         
         group_id = generate_group_id(norm_name, year or 0)
         
+        # Si este grupo estaba ignorado antes, mantener ese estado
+        status = DuplicateStatus.IGNORED if group_id in previously_ignored_movies else DuplicateStatus.PENDING
+        
         # Crear grupo
         group = MovieDuplicateModel(
             group_id=group_id,
             name=name,
             normalized_name=norm_name,
             year=year,
-            status=DuplicateStatus.PENDING,
+            status=status,
         )
         session.add(group)
         await session.flush()
