@@ -91,8 +91,17 @@ const Dashboard = {
         Toast.progress('Iniciando escaneo...', 0);
 
         try {
-            // TODO: Implement polling for scan progress
+            // Start scan (returns immediately)
             const result = await API.post('/scan');
+            
+            if (result.status === 'already_running') {
+                Toast.info('Ya hay un escaneo en curso');
+                return;
+            }
+
+            // Poll for progress
+            await this.pollScanProgress();
+
             Toast.closeProgress();
             Toast.success('Escaneo completado');
             await this.loadData();
@@ -102,6 +111,38 @@ const Dashboard = {
         } finally {
             btn.disabled = false;
             btn.textContent = '🔍 Escanear Ahora';
+        }
+    },
+
+    async pollScanProgress() {
+        const pollInterval = 2000; // 2 seconds
+        
+        while (true) {
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+            
+            try {
+                const status = await API.get('/scan/status');
+                
+                if (!status.running) {
+                    // Scan finished
+                    if (status.error) {
+                        throw new Error(status.error);
+                    }
+                    return;
+                }
+                
+                // Update progress toast
+                const progress = status.progress || 0;
+                const message = status.message || 'Escaneando...';
+                Toast.progress(message, progress);
+                
+            } catch (err) {
+                if (err.message.includes('running')) {
+                    throw err;
+                }
+                // Network error, keep polling
+                console.error('Poll error:', err);
+            }
         }
     }
 };
