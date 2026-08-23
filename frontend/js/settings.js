@@ -75,7 +75,7 @@ const Settings = {
             }
 
             const trashSize = this.formatSize(trashInfo.totalSize || 0);
-            const trashFiles = trashInfo.files || [];
+            const trashFileCount = trashInfo.fileCount || 0;
 
             document.getElementById('trash-settings').innerHTML = `
                 ${Components.toggle('trash-enabled', data.trashEnabled, 'Activar papelera de reciclaje')}
@@ -88,36 +88,29 @@ const Settings = {
                         ${Components.durationSelector('trash-retention', data.trashRetentionValue, data.trashRetentionUnit)}
                     </div>
 
-                    <!-- Trash contents -->
-                    <div class="mt-4 p-3 bg-slate-800/50 rounded-lg">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-sm text-slate-400">
-                                📁 ${trashInfo.fileCount || 0} archivo(s) — ${trashSize}
-                            </span>
-                            <button id="btn-empty-trash" class="btn-danger text-xs" ${trashFiles.length === 0 ? 'disabled' : ''}>
-                                🗑️ Vaciar Papelera
-                            </button>
-                        </div>
-                        ${trashFiles.length > 0 ? `
-                            <div class="max-h-40 overflow-y-auto space-y-1 mt-2">
-                                ${trashFiles.map(f => `
-                                    <div class="flex items-center justify-between text-xs py-1 border-b border-slate-700/50 last:border-0">
-                                        <span class="text-slate-300 truncate flex-1" title="${f.path}">${f.name}</span>
-                                        <span class="text-slate-500 ml-2 whitespace-nowrap">${this.formatSize(f.size)}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        ` : `
-                            <p class="text-slate-500 text-xs">La papelera está vacía</p>
-                        `}
+                    <!-- Trash summary -->
+                    <div class="flex items-center gap-3 mt-3">
+                        <span class="text-sm text-slate-400">
+                            📁 ${trashFileCount} archivo(s) — ${trashSize}
+                        </span>
+                        <button id="btn-view-trash" class="btn-ghost text-xs border border-slate-600" ${trashFileCount === 0 ? 'disabled' : ''}>
+                            👁️ Ver archivos
+                        </button>
+                        <button id="btn-empty-trash" class="btn-danger text-xs" ${trashFileCount === 0 ? 'disabled' : ''}>
+                            🗑️ Vaciar
+                        </button>
                     </div>
                 </div>
             `;
 
+            document.getElementById('btn-view-trash')?.addEventListener('click', () => {
+                this.openTrashModal(trashInfo.files || []);
+            });
+
             document.getElementById('btn-empty-trash')?.addEventListener('click', () => {
                 Components.confirmModal(
                     'Vaciar Papelera',
-                    `¿Eliminar permanentemente ${trashFiles.length} archivo(s) (${trashSize})?`,
+                    `¿Eliminar permanentemente ${trashFileCount} archivo(s) (${trashSize})?`,
                     () => this.emptyTrash()
                 );
             });
@@ -277,5 +270,181 @@ const Settings = {
         if (mb >= 1) return `${mb.toFixed(1)} MB`;
         const kb = bytes / 1024;
         return `${kb.toFixed(0)} KB`;
+    },
+
+    // Trash modal state
+    _trashFiles: [],
+    _trashFiltered: [],
+    _trashPage: 1,
+    _trashPageSize: 20,
+    _trashSearch: '',
+
+    openTrashModal(files) {
+        this._trashFiles = files;
+        this._trashFiltered = files;
+        this._trashPage = 1;
+        this._trashSearch = '';
+
+        const overlay = document.createElement('div');
+        overlay.id = 'trash-modal-overlay';
+        overlay.className = 'wizard-overlay';
+        overlay.innerHTML = `
+            <div class="wizard-content" style="max-width: 48rem;">
+                <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-bold">🗑️ Papelera de Reciclaje</h3>
+                        <p class="text-slate-400 text-sm" id="trash-modal-count">${files.length} archivo(s)</p>
+                    </div>
+                    <button onclick="Settings.closeTrashModal()" class="text-slate-400 hover:text-white text-2xl">&times;</button>
+                </div>
+
+                <!-- Search -->
+                <div class="p-4 border-b border-slate-700">
+                    <input type="text" id="trash-search" placeholder="Buscar archivo..."
+                        class="w-full px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+
+                <!-- File list -->
+                <div class="p-4 overflow-y-auto" style="max-height: 50vh;">
+                    <div id="trash-file-list" class="space-y-1"></div>
+                </div>
+
+                <!-- Pagination -->
+                <div class="p-4 border-t border-slate-700 flex items-center justify-between text-sm">
+                    <span id="trash-pagination-info" class="text-slate-400"></span>
+                    <div class="flex gap-2" id="trash-pagination-btns"></div>
+                </div>
+
+                <!-- Footer -->
+                <div class="p-4 border-t border-slate-700 flex justify-end gap-3">
+                    <button onclick="Settings.closeTrashModal()" class="btn-ghost border border-slate-600">Cerrar</button>
+                    <button onclick="Settings.emptyTrashFromModal()" class="btn-danger" ${files.length === 0 ? 'disabled' : ''}>
+                        🗑️ Vaciar Papelera
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('trash-modal-overlay')?.remove();
+        document.body.appendChild(overlay);
+
+        // Search listener
+        document.getElementById('trash-search')?.addEventListener('input', (e) => {
+            this._trashSearch = e.target.value.toLowerCase();
+            this._trashPage = 1;
+            this.filterTrashFiles();
+        });
+
+        this.renderTrashFiles();
+    },
+
+    filterTrashFiles() {
+        if (!this._trashSearch) {
+            this._trashFiltered = this._trashFiles;
+        } else {
+            this._trashFiltered = this._trashFiles.filter(f =>
+                f.name.toLowerCase().includes(this._trashSearch) ||
+                f.path.toLowerCase().includes(this._trashSearch)
+            );
+        }
+        this.renderTrashFiles();
+    },
+
+    renderTrashFiles() {
+        const container = document.getElementById('trash-file-list');
+        const infoEl = document.getElementById('trash-pagination-info');
+        const btnsEl = document.getElementById('trash-pagination-btns');
+        const countEl = document.getElementById('trash-modal-count');
+        if (!container) return;
+
+        const total = this._trashFiltered.length;
+        const totalPages = Math.ceil(total / this._trashPageSize);
+        const start = (this._trashPage - 1) * this._trashPageSize;
+        const pageFiles = this._trashFiltered.slice(start, start + this._trashPageSize);
+
+        // Update count
+        if (countEl) {
+            countEl.textContent = this._trashSearch
+                ? `${total} resultado(s) de ${this._trashFiles.length}`
+                : `${total} archivo(s)`;
+        }
+
+        if (total === 0) {
+            container.innerHTML = '<p class="text-slate-500 text-sm text-center py-8">No se encontraron archivos</p>';
+            if (infoEl) infoEl.textContent = '';
+            if (btnsEl) btnsEl.innerHTML = '';
+            return;
+        }
+
+        // Render files
+        container.innerHTML = pageFiles.map(f => `
+            <div class="flex items-center justify-between text-sm py-2 px-3 rounded hover:bg-slate-800/50">
+                <div class="flex-1 min-w-0">
+                    <div class="text-slate-300 truncate" title="${f.path}">${f.name}</div>
+                    <div class="text-slate-500 text-xs truncate" title="${f.path}">${f.path.substring(0, f.path.lastIndexOf('/') + 1)}</div>
+                </div>
+                <span class="text-slate-400 ml-4 whitespace-nowrap">${this.formatSize(f.size)}</span>
+            </div>
+        `).join('');
+
+        // Render pagination info
+        if (infoEl) {
+            infoEl.textContent = `${start + 1}-${Math.min(start + this._trashPageSize, total)} de ${total}`;
+        }
+
+        // Render pagination buttons
+        if (btnsEl) {
+            let btns = '';
+            if (this._trashPage > 1) {
+                btns += `<button onclick="Settings.trashPrevPage()" class="btn-ghost text-xs border border-slate-600">← Ant</button>`;
+            }
+            for (let p = 1; p <= totalPages; p++) {
+                if (p === 1 || p === totalPages || Math.abs(p - this._trashPage) <= 2) {
+                    btns += `<button onclick="Settings.trashGoPage(${p})" class="btn-ghost text-xs border ${p === this._trashPage ? 'border-blue-500 text-blue-400' : 'border-slate-600'}">${p}</button>`;
+                } else if (Math.abs(p - this._trashPage) === 3) {
+                    btns += `<span class="text-slate-500">...</span>`;
+                }
+            }
+            if (this._trashPage < totalPages) {
+                btns += `<button onclick="Settings.trashNextPage()" class="btn-ghost text-xs border border-slate-600">Sig →</button>`;
+            }
+            btnsEl.innerHTML = btns;
+        }
+    },
+
+    trashPrevPage() {
+        if (this._trashPage > 1) {
+            this._trashPage--;
+            this.renderTrashFiles();
+        }
+    },
+
+    trashNextPage() {
+        const totalPages = Math.ceil(this._trashFiltered.length / this._trashPageSize);
+        if (this._trashPage < totalPages) {
+            this._trashPage++;
+            this.renderTrashFiles();
+        }
+    },
+
+    trashGoPage(page) {
+        this._trashPage = page;
+        this.renderTrashFiles();
+    },
+
+    closeTrashModal() {
+        document.getElementById('trash-modal-overlay')?.remove();
+    },
+
+    async emptyTrashFromModal() {
+        try {
+            Toast.info('Vaciando papelera...');
+            await API.post('/settings/trash/empty');
+            Toast.success('Papelera vaciada');
+            this.closeTrashModal();
+            await this.loadSettings();
+        } catch (err) {
+            Toast.error('Error al vaciar la papelera');
+        }
     }
 };
