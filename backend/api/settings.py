@@ -12,8 +12,16 @@ router = APIRouter()
 @router.get("")
 async def get_settings(user: dict = Depends(get_current_user)):
     """Obtiene la configuración actual"""
-    settings = await get_all_settings()
-    return settings
+    snake_settings = await get_all_settings()
+    
+    # Convert snake_case to camelCase for frontend
+    camel_settings = {}
+    for key, value in snake_settings.items():
+        parts = key.split('_')
+        camel_key = parts[0] + ''.join(p.capitalize() for p in parts[1:])
+        camel_settings[camel_key] = value
+    
+    return camel_settings
 
 
 @router.put("")
