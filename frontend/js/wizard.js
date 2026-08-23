@@ -359,7 +359,10 @@ const Wizard = {
             Toast.success(messages[type]);
 
             if (type !== 'skip') {
+                // Remove current group - next group takes its position
                 this.groups.splice(this.currentIndex, 1);
+                // Keep index same (next group is now at currentIndex)
+                // If we removed the last item, go back one
                 if (this.currentIndex >= this.groups.length) {
                     this.currentIndex = Math.max(0, this.groups.length - 1);
                 }
