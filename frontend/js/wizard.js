@@ -247,17 +247,18 @@ const Wizard = {
         if (isEpisode) {
             return `
                 <div class="flex flex-wrap gap-3 text-xs text-slate-400 mb-3">
-                    ${copy.jellyfinItemId ? `<span title="ID Jellyfin">🆔 ${copy.jellyfinItemId}</span>` : ''}
-                    ${copy.seriesName ? `<span>📺 ${copy.seriesName}</span>` : ''}
-                    ${copy.seasonNumber != null ? `<span>🎬 T${String(copy.seasonNumber).padStart(2, '0')}</span>` : ''}
+                    ${copy.seriesId ? `<span title="ID Serie Jellyfin">📺 ${copy.seriesId}</span>` : ''}
+                    ${copy.seriesName ? `<span>🎬 ${copy.seriesName}</span>` : ''}
+                    ${copy.seasonId ? `<span title="ID Temporada Jellyfin">Season: ${copy.seasonId}</span>` : ''}
+                    ${copy.seasonNumber != null ? `<span>T${String(copy.seasonNumber).padStart(2, '0')}</span>` : ''}
                     ${copy.episodeNumber != null ? `<span>EP${String(copy.episodeNumber).padStart(2, '0')}</span>` : ''}
                 </div>
             `;
         } else {
             return `
                 <div class="flex flex-wrap gap-3 text-xs text-slate-400 mb-3">
-                    ${copy.jellyfinItemId ? `<span title="ID Jellyfin">🆔 ${copy.jellyfinItemId}</span>` : ''}
-                    ${copy.movieName ? `<span>🎬 ${copy.movieName}</span>` : ''}
+                    ${copy.movieId ? `<span title="ID Película Jellyfin">🎬 ${copy.movieId}</span>` : ''}
+                    ${copy.movieName ? `<span>${copy.movieName}</span>` : ''}
                     ${copy.movieYear ? `<span>📅 ${copy.movieYear}</span>` : ''}
                 </div>
             `;

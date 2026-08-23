@@ -46,6 +46,8 @@ class EpisodeDuplicate(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     group_id = Column(String, unique=True, nullable=False, index=True)
     series_name = Column(String, nullable=False)
+    series_id = Column(String, nullable=True)  # Jellyfin SeriesId
+    season_id = Column(String, nullable=True)  # Jellyfin SeasonId
     normalized_series = Column(String, nullable=False, index=True)
     season = Column(Integer, nullable=False)
     episode = Column(Integer, nullable=False)
@@ -83,6 +85,7 @@ class MovieDuplicate(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     group_id = Column(String, unique=True, nullable=False, index=True)
     name = Column(String, nullable=False)
+    jellyfin_movie_id = Column(String, nullable=True)  # Jellyfin ItemId
     normalized_name = Column(String, nullable=False, index=True)
     year = Column(Integer, nullable=True)
     status = Column(String, default=DuplicateStatus.PENDING)

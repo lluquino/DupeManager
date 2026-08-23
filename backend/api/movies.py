@@ -17,12 +17,14 @@ def format_movie_group(g):
     for c in g.copies:
         copy_data = format_copy(c)
         copy_data["movieName"] = g.name
+        copy_data["movieId"] = g.jellyfin_movie_id
         copy_data["movieYear"] = g.year
         copies.append(copy_data)
     
     return {
         "groupId": g.group_id,
         "name": g.name,
+        "movieId": g.jellyfin_movie_id,
         "year": g.year,
         "status": g.status,
         "totalSize": g.total_size,

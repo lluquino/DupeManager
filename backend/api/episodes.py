@@ -17,6 +17,8 @@ def format_episode_group(g):
     for c in g.copies:
         copy_data = format_copy(c)
         copy_data["seriesName"] = g.series_name
+        copy_data["seriesId"] = g.series_id
+        copy_data["seasonId"] = g.season_id
         copy_data["seasonNumber"] = g.season
         copy_data["episodeNumber"] = g.episode
         copies.append(copy_data)
@@ -24,6 +26,8 @@ def format_episode_group(g):
     return {
         "groupId": g.group_id,
         "seriesName": g.series_name,
+        "seriesId": g.series_id,
+        "seasonId": g.season_id,
         "season": g.season,
         "episode": g.episode,
         "status": g.status,

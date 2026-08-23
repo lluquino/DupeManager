@@ -71,6 +71,8 @@ async def scan_episodes(
         
         # Extraer información
         series_name = item.get("SeriesName", "")
+        series_id = item.get("SeriesId")
+        season_id = item.get("SeasonId")
         season = item.get("SeasonIndexNumber")
         episode = item.get("IndexNumber")
         
@@ -99,6 +101,8 @@ async def scan_episodes(
         groups[key].append({
             "item": item,
             "series_name": series_name,
+            "series_id": series_id,
+            "season_id": season_id,
             "season": season,
             "episode": episode,
             "norm_series": norm_series,
@@ -120,6 +124,8 @@ async def scan_episodes(
         season = int(parts[1])
         episode = int(parts[2])
         series_name = items_list[0]["series_name"]
+        series_id = items_list[0].get("series_id")
+        season_id = items_list[0].get("season_id")
         
         group_id = generate_group_id(norm_series, season, episode)
         
@@ -127,6 +133,8 @@ async def scan_episodes(
         group = EpisodeDuplicate(
             group_id=group_id,
             series_name=series_name,
+            series_id=series_id,
+            season_id=season_id,
             normalized_series=norm_series,
             season=season,
             episode=episode,
@@ -413,7 +421,7 @@ async def run_full_scan(
                     params = {
                         "api_key": api_key, "Recursive": "true",
                         "IncludeItemTypes": "Episode",
-                        "Fields": "Path,MediaStreams,Size,ProductionYear,SeriesName,SeasonIndexNumber,IndexNumber,LocationType",
+                        "Fields": "Path,MediaStreams,Size,ProductionYear,SeriesName,SeriesId,SeasonId,SeasonIndexNumber,IndexNumber,LocationType",
                         "Limit": limit, "StartIndex": start_index,
                     }
                     response = await client.get(f"{jellyfin_url}/Items", params=params)
