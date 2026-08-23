@@ -5,7 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from backend.database import async_session, EpisodeDuplicate, EpisodeCopy, DuplicateStatus
 from backend.auth import get_current_user
-from backend.actions.manager import keep_best_and_remove_others, ignore_group
+from backend.actions.manager import keep_best_and_remove_others, keep_selected_and_remove_others, ignore_group
+from backend.api.helpers import format_copy
 
 router = APIRouter()
 
@@ -22,11 +23,9 @@ async def list_episodes(
             selectinload(EpisodeDuplicate.copies)
         )
         
-        # Filtrar por estado
         if status:
             query = query.where(EpisodeDuplicate.status == status)
         
-        # Ordenar por temporada y episodio
         query = query.order_by(
             EpisodeDuplicate.normalized_series,
             EpisodeDuplicate.season,
@@ -36,7 +35,6 @@ async def list_episodes(
         result = await session.execute(query)
         groups = result.scalars().all()
         
-        # Aplicar búsqueda
         if search:
             search_lower = search.lower()
             groups = [
@@ -53,20 +51,7 @@ async def list_episodes(
             "episode": g.episode,
             "status": g.status,
             "totalSize": g.total_size,
-            "copies": [
-                {
-                    "id": c.id,
-                    "jellyfinItemId": c.jellyfin_item_id,
-                    "path": c.path,
-                    "filename": c.filename,
-                    "size": c.size,
-                    "resolution": c.resolution,
-                    "codec": c.codec,
-                    "qualityScore": c.quality_score,
-                    "isBest": c.is_best,
-                }
-                for c in g.copies
-            ],
+            "copies": [format_copy(c) for c in g.copies],
         }
         for g in groups
     ]
@@ -93,20 +78,7 @@ async def get_episode_group(group_id: str, user: dict = Depends(get_current_user
         "episode": group.episode,
         "status": group.status,
         "totalSize": group.total_size,
-        "copies": [
-            {
-                "id": c.id,
-                "jellyfinItemId": c.jellyfin_item_id,
-                "path": c.path,
-                "filename": c.filename,
-                "size": c.size,
-                "resolution": c.resolution,
-                "codec": c.codec,
-                "qualityScore": c.quality_score,
-                "isBest": c.is_best,
-            }
-            for c in group.copies
-        ],
+        "copies": [format_copy(c) for c in group.copies],
     }
 
 
@@ -118,20 +90,31 @@ async def episode_action(
 ):
     """
     Ejecuta una acción sobre un grupo:
-    - keep: Conservar la mejor, eliminar las peores
+    - keep: Conservar la(s) mejor(es), eliminar las peores
+      - keepCopyIds: [1, 3] → conserva estas copias específicas
+      - Sin keepCopyIds → conserva la de mayor score
     - ignore: Marcar como ignorado
     - skip: No hacer nada
     """
     action = body.get("action")
+    keep_copy_ids = body.get("keepCopyIds")
     
     if action == "keep":
-        # Obtener configuración de papelera
         from backend.config import settings
-        result = await keep_best_and_remove_others(
-            group_id,
-            group_type="episode",
-            trash_enabled=settings.trash_enabled,
-        )
+        
+        if keep_copy_ids:
+            result = await keep_selected_and_remove_others(
+                group_id,
+                keep_copy_ids=keep_copy_ids,
+                group_type="episode",
+                trash_enabled=settings.trash_enabled,
+            )
+        else:
+            result = await keep_best_and_remove_others(
+                group_id,
+                group_type="episode",
+                trash_enabled=settings.trash_enabled,
+            )
         return result
     
     elif action == "ignore":

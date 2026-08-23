@@ -3,10 +3,10 @@
 const Wizard = {
     groups: [],
     currentIndex: 0,
-    type: 'episode', // 'episode' or 'movie'
+    type: 'episode',
+    selectedCopies: {},  // { groupId: [copyId1, copyId2] }
 
     async open() {
-        // Load all pending groups
         try {
             const episodes = await API.get('/episodes');
             const movies = await API.get('/movies');
@@ -16,7 +16,6 @@ const Wizard = {
                 ...(movies || []).filter(g => g.status === 'pending'),
             ];
 
-            // Sort by size descending (most recoverable first)
             this.groups.sort((a, b) => (b.totalSize || 0) - (a.totalSize || 0));
 
             if (this.groups.length === 0) {
@@ -25,6 +24,7 @@ const Wizard = {
             }
 
             this.currentIndex = 0;
+            this.selectedCopies = {};
             this.renderModal();
         } catch (err) {
             Toast.error('Error al cargar duplicados');
@@ -36,18 +36,101 @@ const Wizard = {
             const endpoint = type === 'episode' ? '/episodes' : '/movies';
             const group = await API.get(`${endpoint}/${groupId}`);
 
-            if (!group) {
-                Toast.error('Grupo no encontrado');
+            if (!group || group.error) {
+                Toast.error(group.error || 'Grupo no encontrado');
                 return;
             }
 
             this.groups = [group];
             this.currentIndex = 0;
             this.type = type;
+            this.selectedCopies = {};
             this.renderModal();
         } catch (err) {
             Toast.error('Error al cargar el grupo');
         }
+    },
+
+    getSelectedCopies() {
+        const group = this.groups[this.currentIndex];
+        if (!group) return [];
+        return this.selectedCopies[group.groupId] || [];
+    },
+
+    toggleCopySelection(copyId) {
+        const group = this.groups[this.currentIndex];
+        if (!group) return;
+
+        if (!this.selectedCopies[group.groupId]) {
+            this.selectedCopies[group.groupId] = [];
+        }
+
+        const selected = this.selectedCopies[group.groupId];
+        const idx = selected.indexOf(copyId);
+
+        if (idx === -1) {
+            selected.push(copyId);
+        } else {
+            selected.splice(idx, 1);
+        }
+
+        this.updateCopyCards();
+        this.updateActionButtons();
+    },
+
+    selectBest() {
+        const group = this.groups[this.currentIndex];
+        if (!group || !group.copies) return;
+
+        // Find best copy by score
+        const best = group.copies.reduce((best, copy) =>
+            (copy.qualityScore > (best?.qualityScore || -1)) ? copy : best
+        , null);
+
+        if (best) {
+            this.selectedCopies[group.groupId] = [best.id];
+            this.updateCopyCards();
+            this.updateActionButtons();
+        }
+    },
+
+    updateCopyCards() {
+        const group = this.groups[this.currentIndex];
+        if (!group) return;
+
+        const selected = this.getSelectedCopies();
+
+        group.copies.forEach(copy => {
+            const card = document.getElementById(`copy-card-${copy.id}`);
+            if (!card) return;
+
+            const checkbox = card.querySelector('.copy-checkbox');
+            const isSelected = selected.includes(copy.id);
+
+            if (checkbox) checkbox.checked = isSelected;
+            card.classList.toggle('selected', isSelected);
+        });
+    },
+
+    updateActionButtons() {
+        const selected = this.getSelectedCopies();
+        const keepBtn = document.getElementById('btn-keep-selected');
+        if (keepBtn) {
+            keepBtn.disabled = selected.length === 0;
+            keepBtn.textContent = selected.length > 0
+                ? `✅ Conservar ${selected.length} seleccionada${selected.length > 1 ? 's' : ''}`
+                : '✅ Conservar seleccionadas';
+        }
+    },
+
+    toggleTracks(type, copyId) {
+        const container = document.getElementById(`${type}-tracks-${copyId}`);
+        const btn = document.getElementById(`${type}-toggle-${copyId}`);
+        if (!container || !btn) return;
+
+        const isExpanded = container.classList.contains('expanded');
+        container.classList.toggle('expanded');
+        btn.textContent = isExpanded ? btn.dataset.collapsedText : btn.dataset.expandedText;
     },
 
     renderModal() {
@@ -65,8 +148,8 @@ const Wizard = {
             : `${group.name}${group.year ? ` (${group.year})` : ''}`;
 
         const progress = ((this.currentIndex + 1) / this.groups.length * 100).toFixed(0);
+        const selected = this.getSelectedCopies();
 
-        // Find best copy
         const bestId = group.copies?.reduce((best, copy) =>
             (copy.qualityScore > (best?.qualityScore || -1)) ? copy : best
         , null)?.id;
@@ -93,52 +176,28 @@ const Wizard = {
                 </div>
 
                 <!-- Content -->
-                <div class="p-6">
-                    <div class="mb-6">
+                <div class="p-6 overflow-y-auto" style="max-height: 60vh;">
+                    <div class="mb-4">
                         <h4 class="text-xl font-bold text-blue-400">${title}</h4>
                     </div>
 
                     <!-- Copies -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        ${(group.copies || []).map(copy => `
-                            <div class="copy-card ${copy.id === bestId ? 'best' : ''}">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="quality-badge ${copy.id === bestId ? 'quality-best' : 'quality-normal'}">
-                                        ${copy.id === bestId ? '✅ Mejor' : '⚪ Copia'}
-                                    </span>
-                                    <span class="text-sm text-slate-400">Score: ${copy.qualityScore}</span>
-                                </div>
-                                <div class="space-y-2 text-sm">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-slate-500">📁</span>
-                                        <span class="text-slate-300 truncate" title="${copy.path}">${copy.filename}</span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-slate-500">🎬</span>
-                                        <span class="text-slate-300">${copy.resolution || 'Desconocida'}</span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-slate-500">🎞️</span>
-                                        <span class="text-slate-300">${copy.codec || 'Desconocido'}</span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-slate-500">📦</span>
-                                        <span class="text-slate-300">${this.formatSize(copy.size)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('')}
+                    <div class="space-y-4 mb-6">
+                        ${(group.copies || []).map(copy => this.renderCopyCard(copy, bestId, selected)).join('')}
                     </div>
                 </div>
 
                 <!-- Actions -->
                 <div class="p-4 border-t border-slate-700 bg-slate-900/30">
                     <div class="flex flex-wrap gap-3 justify-center">
-                        <button onclick="Wizard.action('keep')" class="btn-success">
-                            ✅ Conservar la mejor
+                        <button onclick="Wizard.selectBest()" class="btn-ghost border border-slate-600 text-sm">
+                            🎯 Seleccionar mejor
+                        </button>
+                        <button id="btn-keep-selected" onclick="Wizard.actionKeepSelected()" class="btn-success" disabled>
+                            ✅ Conservar seleccionadas
                         </button>
                         <button onclick="Wizard.action('ignore')" class="btn-ghost border border-slate-600">
-                            ⏭️ Ignorar este grupo
+                            ⏭️ Ignorar
                         </button>
                         <button onclick="Wizard.action('skip')" class="btn-ghost border border-slate-600">
                             ⏩ Omitir
@@ -158,21 +217,141 @@ const Wizard = {
             </div>
         `;
 
-        // Remove existing overlay
         document.getElementById('wizard-overlay')?.remove();
         document.body.appendChild(overlay);
     },
 
-    async action(type) {
+    renderCopyCard(copy, bestId, selected) {
+        const isSelected = selected.includes(copy.id);
+        const isBest = copy.id === bestId;
+
+        // Build audio string
+        const audioStr = (copy.audioTracks || []).map(t => {
+            const parts = [];
+            if (t.codec) parts.push(t.codec.toUpperCase());
+            if (t.channelLayout) parts.push(t.channelLayout);
+            else if (t.channels) parts.push(`${t.channels}ch`);
+            if (t.title) parts.push(t.title);
+            else if (t.language) parts.push(t.language);
+            return parts.join(' ');
+        }).join(' | ');
+
+        // Build subtitle string
+        const subStr = (copy.subtitleTracks || []).map(t => {
+            const parts = [];
+            if (t.codec) parts.push(t.codec.toUpperCase());
+            if (t.title) parts.push(t.title);
+            else if (t.language) parts.push(t.language);
+            if (t.isForced) parts.push('(Forced)');
+            return parts.join(' ');
+        }).join(' | ');
+
+        // Check if we need dropdown for audio
+        const maxVisible = 2;
+        const audioTracks = copy.audioTracks || [];
+        const subtitleTracks = copy.subtitleTracks || [];
+        const audioNeedsDropdown = audioTracks.length > maxVisible;
+        const subNeedsDropdown = subtitleTracks.length > maxVisible;
+
+        // Short path for display
+        const shortPath = copy.path
+            ? copy.path.replace(/^\/media\//, '').replace(/\/[^/]+$/, '/')
+            : '';
+
+        return `
+            <div id="copy-card-${copy.id}" class="copy-card ${isBest ? 'best' : ''} ${isSelected ? 'selected' : ''}">
+                <!-- Header with checkbox -->
+                <div class="flex items-center gap-3 mb-3">
+                    <input type="checkbox" class="copy-checkbox rounded" ${isSelected ? 'checked' : ''}
+                        onchange="Wizard.toggleCopySelection(${copy.id})">
+                    <span class="quality-badge ${isBest ? 'quality-best' : 'quality-normal'}">
+                        ${isBest ? '✅ Mejor' : '⚪ Copia'}
+                    </span>
+                    <span class="text-sm text-slate-400 ml-auto">Score: ${copy.qualityScore}</span>
+                </div>
+
+                <!-- File info -->
+                <div class="space-y-1.5 text-sm mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500">📁</span>
+                        <span class="text-slate-300 truncate" title="${copy.path}">${copy.filename}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500">📍</span>
+                        <span class="text-slate-400 text-xs truncate" title="${copy.path}">${shortPath}</span>
+                    </div>
+                </div>
+
+                <!-- Video info -->
+                <div class="flex flex-wrap gap-3 text-sm mb-3">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                        🎬 ${copy.resolution || '?'}
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                        🎞️ ${(copy.codec || '?').toUpperCase()}
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                        📦 ${this.formatSize(copy.size)}
+                    </span>
+                </div>
+
+                <!-- Audio tracks -->
+                ${audioStr ? `
+                    <div class="text-sm mb-2">
+                        <span class="text-slate-500">🎧</span>
+                        <span class="text-slate-300">${audioStr}</span>
+                    </div>
+                ` : `
+                    <div class="text-sm mb-2">
+                        <span class="text-slate-500">🎧</span>
+                        <span class="text-slate-500 italic">Sin pistas de audio</span>
+                    </div>
+                `}
+
+                <!-- Subtitle tracks -->
+                ${subStr ? `
+                    <div class="text-sm">
+                        <span class="text-slate-500">📝</span>
+                        <span class="text-slate-300">${subStr}</span>
+                    </div>
+                ` : `
+                    <div class="text-sm">
+                        <span class="text-slate-500">📝</span>
+                        <span class="text-slate-500 italic">Sin subtítulos</span>
+                    </div>
+                `}
+            </div>
+        `;
+    },
+
+    async actionKeepSelected() {
+        const group = this.groups[this.currentIndex];
+        if (!group) return;
+
+        const selected = this.getSelectedCopies();
+        if (selected.length === 0) {
+            Toast.info('Selecciona al menos una copia a conservar');
+            return;
+        }
+
+        await this.action('keep', selected);
+    },
+
+    async action(type, keepCopyIds = null) {
         const group = this.groups[this.currentIndex];
         if (!group) return;
 
         try {
             const endpoint = this.type === 'episode' ? '/episodes' : '/movies';
-            await API.post(`${endpoint}/${group.groupId}/action`, { action: type });
+            const body = { action: type };
+            if (keepCopyIds) body.keepCopyIds = keepCopyIds;
+
+            await API.post(`${endpoint}/${group.groupId}/action`, body);
 
             const messages = {
-                keep: 'Mejor copia conservada, peores eliminadas',
+                keep: keepCopyIds && keepCopyIds.length > 0
+                    ? `${keepCopyIds.length} copia(s) conservada(s), el resto eliminada(s)`
+                    : 'Mejor copia conservada, peores eliminadas',
                 ignore: 'Grupo marcado como ignorado',
                 skip: 'Omitido, permanece pendiente',
             };
@@ -180,7 +359,6 @@ const Wizard = {
             Toast.success(messages[type]);
 
             if (type !== 'skip') {
-                // Remove from list and continue
                 this.groups.splice(this.currentIndex, 1);
                 if (this.currentIndex >= this.groups.length) {
                     this.currentIndex = Math.max(0, this.groups.length - 1);
@@ -216,7 +394,6 @@ const Wizard = {
 
     close() {
         document.getElementById('wizard-overlay')?.remove();
-        // Refresh current view
         if (typeof Dashboard.loadData === 'function') Dashboard.loadData();
     },
 

@@ -195,3 +195,110 @@ async def restore_many_groups(group_ids: list[str]) -> dict:
             restored += 1
     
     return {"success": True, "restored": restored}
+
+
+async def keep_selected_and_remove_others(
+    group_id: str,
+    keep_copy_ids: list[int],
+    group_type: str = "episode",
+    trash_enabled: bool = True,
+) -> dict:
+    """
+    Conserva las copias seleccionadas y elimina las demás.
+    
+    Args:
+        group_id: ID del grupo de duplicados
+        keep_copy_ids: Lista de IDs de copias a conservar
+        group_type: "episode" o "movie"
+        trash_enabled: Si True, mover a papelera. Si False, eliminar directamente.
+    
+    Returns:
+        dict con resultado de la operación
+    """
+    async with async_session() as session:
+        # Obtener el grupo con sus copias
+        if group_type == "episode":
+            query = select(EpisodeDuplicate).where(
+                EpisodeDuplicate.group_id == group_id
+            )
+            result = await session.execute(query)
+            group = result.scalar_one_or_none()
+            
+            if not group:
+                return {"success": False, "error": "Grupo no encontrado"}
+            
+            copies_query = select(EpisodeCopy).where(
+                EpisodeCopy.duplicate_id == group.id
+            )
+            copies_result = await session.execute(copies_query)
+            copies = copies_result.scalars().all()
+            
+        elif group_type == "movie":
+            query = select(MovieDuplicate).where(
+                MovieDuplicate.group_id == group_id
+            )
+            result = await session.execute(query)
+            group = result.scalar_one_or_none()
+            
+            if not group:
+                return {"success": False, "error": "Grupo no encontrado"}
+            
+            copies_query = select(MovieCopy).where(
+                MovieCopy.duplicate_id == group.id
+            )
+            copies_result = await session.execute(copies_query)
+            copies = copies_result.scalars().all()
+        else:
+            return {"success": False, "error": f"Tipo no válido: {group_type}"}
+        
+        if not copies:
+            return {"success": False, "error": "No hay copias en el grupo"}
+        
+        if not keep_copy_ids:
+            return {"success": False, "error": "No se seleccionaron copias a conservar"}
+        
+        # Separar copias a conservar y a eliminar
+        keep_set = set(keep_copy_ids)
+        copies_to_keep = [c for c in copies if c.id in keep_set]
+        copies_to_remove = [c for c in copies if c.id not in keep_set]
+        
+        if not copies_to_keep:
+            return {"success": False, "error": "Ninguna de las copias seleccionadas existe en el grupo"}
+        
+        removed = []
+        errors = []
+        
+        for copy in copies_to_remove:
+            filepath = copy.path
+            
+            if not filepath or not os.path.exists(filepath):
+                errors.append(f"Archivo no encontrado: {filepath}")
+                continue
+            
+            try:
+                if trash_enabled:
+                    success = move_to_trash(filepath, settings.trash_path)
+                else:
+                    success = delete_file(filepath)
+                
+                if success:
+                    removed.append(filepath)
+                    await session.delete(copy)
+                else:
+                    errors.append(f"Error al procesar: {filepath}")
+            except Exception as e:
+                errors.append(f"Error: {filepath} - {str(e)}")
+        
+        # Marcar grupo como resuelto
+        group.status = DuplicateStatus.RESOLVED
+        
+        await session.commit()
+    
+    return {
+        "success": True,
+        "kept": [c.path for c in copies_to_keep],
+        "removed": removed,
+        "errors": errors,
+        "removedCount": len(removed),
+        "keptCount": len(copies_to_keep),
+    }
