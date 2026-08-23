@@ -48,9 +48,17 @@ const Toast = {
     progress(message, progress = 0) {
         if (!this.container) this.init();
 
-        // Remove existing progress toast
+        // Update existing progress toast instead of recreating
         const existing = document.getElementById('toast-progress');
-        if (existing) existing.remove();
+        if (existing) {
+            const fill = existing.querySelector('.progress-fill');
+            const pct = existing.querySelector('.progress-pct');
+            const msg = existing.querySelector('.progress-msg');
+            if (fill) fill.style.width = `${progress}%`;
+            if (pct) pct.textContent = `${Math.round(progress)}%`;
+            if (msg) msg.textContent = message;
+            return existing;
+        }
 
         const toast = document.createElement('div');
         toast.id = 'toast-progress';
@@ -59,12 +67,12 @@ const Toast = {
         toast.innerHTML = `
             <div class="flex items-center gap-3">
                 <span class="text-lg">⏳</span>
-                <span class="text-sm flex-1">${message}</span>
+                <span class="text-sm flex-1 progress-msg">${message}</span>
             </div>
             <div class="progress-bar">
                 <div class="progress-fill" style="width: ${progress}%"></div>
             </div>
-            <span class="text-xs text-blue-300 text-right">${Math.round(progress)}%</span>
+            <span class="text-xs text-blue-300 text-right progress-pct">${Math.round(progress)}%</span>
         `;
 
         this.container.appendChild(toast);

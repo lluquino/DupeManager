@@ -383,6 +383,11 @@ async def run_full_scan(
                     total = result.get("TotalRecordCount", 0)
                     all_episodes.extend(items)
                     start_index += len(items)
+                    
+                    # Update progress: fetching episodes is 0-10%
+                    fetch_pct = (start_index / total * 10) if total > 0 else 0
+                    if progress_callback:
+                        progress_callback(fetch_pct, f"Descargando episodios: {start_index}/{total}")
                     print(f"[SCAN] Episodes: {start_index}/{total}", flush=True)
                     
                     if start_index >= total:
@@ -394,9 +399,9 @@ async def run_full_scan(
         print(f"[SCAN] Total episodes fetched: {len(all_episodes)}", flush=True)
         stats["episodes"]["total"] = len(all_episodes)
         
-        # Escanear episodios
+        # Escanear episodios (10-50%)
         def ep_progress(current, total, message):
-            progress = (current / total * 50) if total > 0 else 0
+            progress = 10 + (current / total * 40) if total > 0 else 10
             if progress_callback:
                 progress_callback(progress, message)
         
@@ -404,6 +409,8 @@ async def run_full_scan(
         stats["episodes"] = ep_stats
         
         # Actualizar progreso
+        if progress_callback:
+            progress_callback(50, "Descargando películas...")
         scan_status.progress = 50
         scan_status.message = "Obteniendo películas de Jellyfin..."
         await session.commit()
@@ -432,6 +439,11 @@ async def run_full_scan(
                     total = result.get("TotalRecordCount", 0)
                     all_movies.extend(items)
                     start_index += len(items)
+                    
+                    # Update progress: fetching movies is 50-60%
+                    fetch_pct = 50 + (start_index / total * 10) if total > 0 else 50
+                    if progress_callback:
+                        progress_callback(fetch_pct, f"Descargando películas: {start_index}/{total}")
                     print(f"[SCAN] Movies: {start_index}/{total}", flush=True)
                     
                     if start_index >= total:
@@ -443,9 +455,9 @@ async def run_full_scan(
         print(f"[SCAN] Total movies fetched: {len(all_movies)}", flush=True)
         stats["movies"]["total"] = len(all_movies)
         
-        # Escanear películas
+        # Escanear películas (60-100%)
         def movie_progress(current, total, message):
-            progress = 50 + (current / total * 50) if total > 0 else 50
+            progress = 60 + (current / total * 40) if total > 0 else 60
             if progress_callback:
                 progress_callback(progress, message)
         
