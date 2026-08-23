@@ -7,7 +7,7 @@ services:
       - "8097:8097"
     volumes:
       - ./data:/app/data
-      - /mnt/stream/media:/media:ro
+      - /mnt/stream/media:/media
     environment:
       - JELLYFIN_URL=http://192.168.0.22:8096
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
