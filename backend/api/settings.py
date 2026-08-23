@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends
 from backend.auth import get_current_user
-from backend.actions.trash import empty_trash, get_trash_info
+from backend.actions.trash import empty_trash, get_trash_info, list_trash_files
 from backend.settings_service import get_all_settings, update_settings
 from backend.notifications.service import send_test_notification
 
@@ -97,8 +97,9 @@ async def empty_trash_endpoint(user: dict = Depends(get_current_user)):
 
 @router.get("/trash/info")
 async def get_trash_info_endpoint(user: dict = Depends(get_current_user)):
-    """Obtiene información sobre la papelera"""
+    """Obtiene información sobre la papelera incluyendo lista de archivos"""
     info = get_trash_info()
+    info["files"] = list_trash_files()
     return info
 
 

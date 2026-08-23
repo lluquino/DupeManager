@@ -170,6 +170,44 @@ def get_trash_info(trash_path: str = None) -> dict:
     return info
 
 
+def list_trash_files(trash_path: str = None) -> list[dict]:
+    """
+    Lista los archivos en la papelera con su tamaño.
+    
+    Returns:
+        Lista de dicts con name, path, size, modified
+    """
+    if trash_path is None:
+        trash_path = settings.trash_path
+    
+    files = []
+    
+    if not os.path.exists(trash_path):
+        return files
+    
+    for root, dirs, filenames in os.walk(trash_path):
+        for name in filenames:
+            filepath = os.path.join(root, name)
+            try:
+                size = os.path.getsize(filepath)
+                mtime = os.path.getmtime(filepath)
+                # Get relative path from trash root
+                rel_path = os.path.relpath(filepath, trash_path)
+                files.append({
+                    "name": name,
+                    "path": rel_path,
+                    "size": size,
+                    "modified": datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat(),
+                })
+            except (OSError, IOError):
+                pass
+    
+    # Sort by modified date (newest first)
+    files.sort(key=lambda f: f["modified"], reverse=True)
+    
+    return files
+
+
 class TrashCleanupScheduler:
     """
     Scheduler para limpieza automática de la papelera.

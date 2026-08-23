@@ -67,6 +67,16 @@ const Settings = {
             if (!data) return;
 
             // Trash
+            let trashInfo;
+            try {
+                trashInfo = await API.get('/settings/trash/info');
+            } catch (e) {
+                trashInfo = { exists: false, fileCount: 0, totalSize: 0, files: [] };
+            }
+
+            const trashSize = this.formatSize(trashInfo.totalSize || 0);
+            const trashFiles = trashInfo.files || [];
+
             document.getElementById('trash-settings').innerHTML = `
                 ${Components.toggle('trash-enabled', data.trashEnabled, 'Activar papelera de reciclaje')}
                 <p class="text-slate-500 text-xs mt-2 ml-14">
@@ -77,17 +87,37 @@ const Settings = {
                         <label class="block text-sm text-slate-400 mb-1">Tiempo antes de borrado automático:</label>
                         ${Components.durationSelector('trash-retention', data.trashRetentionValue, data.trashRetentionUnit)}
                     </div>
-                    <button id="btn-empty-trash" class="btn-danger text-sm">
-                        🗑️ Vaciar Papelera Ahora
-                    </button>
-                    <p class="text-slate-500 text-xs">⚠️ Esto eliminará permanentemente todos los archivos de la papelera.</p>
+
+                    <!-- Trash contents -->
+                    <div class="mt-4 p-3 bg-slate-800/50 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-slate-400">
+                                📁 ${trashInfo.fileCount || 0} archivo(s) — ${trashSize}
+                            </span>
+                            <button id="btn-empty-trash" class="btn-danger text-xs" ${trashFiles.length === 0 ? 'disabled' : ''}>
+                                🗑️ Vaciar Papelera
+                            </button>
+                        </div>
+                        ${trashFiles.length > 0 ? `
+                            <div class="max-h-40 overflow-y-auto space-y-1 mt-2">
+                                ${trashFiles.map(f => `
+                                    <div class="flex items-center justify-between text-xs py-1 border-b border-slate-700/50 last:border-0">
+                                        <span class="text-slate-300 truncate flex-1" title="${f.path}">${f.name}</span>
+                                        <span class="text-slate-500 ml-2 whitespace-nowrap">${this.formatSize(f.size)}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : `
+                            <p class="text-slate-500 text-xs">La papelera está vacía</p>
+                        `}
+                    </div>
                 </div>
             `;
 
             document.getElementById('btn-empty-trash')?.addEventListener('click', () => {
                 Components.confirmModal(
                     'Vaciar Papelera',
-                    '¿Estás seguro de que quieres eliminar permanentemente todos los archivos de la papelera?',
+                    `¿Eliminar permanentemente ${trashFiles.length} archivo(s) (${trashSize})?`,
                     () => this.emptyTrash()
                 );
             });
@@ -237,5 +267,15 @@ const Settings = {
         } catch (err) {
             Toast.error(`Error: ${err.message}`);
         }
+    },
+
+    formatSize(bytes) {
+        if (!bytes) return '—';
+        const gb = bytes / (1024 * 1024 * 1024);
+        if (gb >= 1) return `${gb.toFixed(1)} GB`;
+        const mb = bytes / (1024 * 1024);
+        if (mb >= 1) return `${mb.toFixed(1)} MB`;
+        const kb = bytes / 1024;
+        return `${kb.toFixed(0)} KB`;
     }
 };
