@@ -1,0 +1,1 @@
+"""DupeManager — Scanner Package"""

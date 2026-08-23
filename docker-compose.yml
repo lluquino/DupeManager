@@ -1,0 +1,21 @@
+services:
+  dupemanager:
+    build: .
+    container_name: dupemanager
+    restart: unless-stopped
+    ports:
+      - "8097:8097"
+    volumes:
+      - ./data:/app/data
+      - /mnt/stream/media:/media:ro
+    environment:
+      - JELLYFIN_URL=http://192.168.0.22:8096
+      - JELLYFIN_API_KEY=c0b0a3c579e54cbb9a38c8538ae76f20
+      - JWT_SECRET=change-me-to-a-random-secret
+      - MEDIA_PATH=/media
+      - TRASH_PATH=/media/tmp/DupeManager-trash
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8097/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
