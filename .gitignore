@@ -34,5 +34,8 @@ Thumbs.db
 # Logs
 *.log
 
+# Docs (generated locally)
+docs/
+
 # Trash (local testing)
 data/trash/
