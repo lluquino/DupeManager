@@ -104,11 +104,24 @@ const Wizard = {
             const card = document.getElementById(`copy-card-${copy.id}`);
             if (!card) return;
 
-            const checkbox = card.querySelector('.copy-checkbox');
             const isSelected = selected.includes(copy.id);
-
-            if (checkbox) checkbox.checked = isSelected;
             card.classList.toggle('selected', isSelected);
+
+            // Update badge text
+            const badge = card.querySelector('.quality-badge');
+            if (badge) {
+                if (isSelected) {
+                    badge.className = 'quality-badge quality-selected';
+                    badge.textContent = '☑️ Seleccionada';
+                } else if (copy.id === group.copies.reduce((best, c) =>
+                    (c.qualityScore > (best?.qualityScore || -1)) ? c : best, null)?.id) {
+                    badge.className = 'quality-badge quality-best';
+                    badge.textContent = '✅ Mejor';
+                } else {
+                    badge.className = 'quality-badge quality-normal';
+                    badge.textContent = '⚪ Copia';
+                }
+            }
         });
     },
 
@@ -246,26 +259,18 @@ const Wizard = {
             return parts.join(' ');
         }).join(' | ');
 
-        // Check if we need dropdown for audio
-        const maxVisible = 2;
-        const audioTracks = copy.audioTracks || [];
-        const subtitleTracks = copy.subtitleTracks || [];
-        const audioNeedsDropdown = audioTracks.length > maxVisible;
-        const subNeedsDropdown = subtitleTracks.length > maxVisible;
-
         // Short path for display
         const shortPath = copy.path
             ? copy.path.replace(/^\/media\//, '').replace(/\/[^/]+$/, '/')
             : '';
 
         return `
-            <div id="copy-card-${copy.id}" class="copy-card ${isBest ? 'best' : ''} ${isSelected ? 'selected' : ''}">
-                <!-- Header with checkbox -->
+            <div id="copy-card-${copy.id}" class="copy-card ${isBest ? 'best' : ''} ${isSelected ? 'selected' : ''} cursor-pointer"
+                 onclick="Wizard.toggleCopySelection(${copy.id})">
+                <!-- Header -->
                 <div class="flex items-center gap-3 mb-3">
-                    <input type="checkbox" class="copy-checkbox rounded" ${isSelected ? 'checked' : ''}
-                        onchange="Wizard.toggleCopySelection(${copy.id})">
                     <span class="quality-badge ${isBest ? 'quality-best' : 'quality-normal'}">
-                        ${isBest ? '✅ Mejor' : '⚪ Copia'}
+                        ${isSelected ? '☑️ Seleccionada' : isBest ? '✅ Mejor' : '⚪ Copia'}
                     </span>
                     <span class="text-sm text-slate-400 ml-auto">Score: ${copy.qualityScore}</span>
                 </div>
