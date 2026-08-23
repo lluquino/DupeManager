@@ -93,6 +93,13 @@ const Settings = {
             });
 
             // Auto Scan
+            const lastAutoScan = data.lastAutoScan
+                ? new Date(data.lastAutoScan).toLocaleString('es-ES')
+                : 'Nunca';
+            const nextAutoScan = data.nextAutoScan
+                ? new Date(data.nextAutoScan).toLocaleString('es-ES')
+                : 'Desactivado';
+
             document.getElementById('scan-settings').innerHTML = `
                 ${Components.toggle('auto-scan-enabled', data.autoScanEnabled, 'Activar escaneo automático')}
                 <div class="mt-4 ml-14 space-y-3">
@@ -101,6 +108,10 @@ const Settings = {
                         ${Components.durationSelector('auto-scan', data.autoScanValue, data.autoScanUnit)}
                     </div>
                     <p class="text-slate-500 text-xs">Unidades: minutos (mín 5), horas (mín 1), días (mín 1), semanas (mín 1), meses (mín 1, máx 12)</p>
+                    <div class="mt-3 p-3 bg-slate-800/50 rounded-lg text-sm space-y-1">
+                        <div><span class="text-slate-400">Último escaneo automático:</span> <span class="text-white">${lastAutoScan}</span></div>
+                        <div><span class="text-slate-400">Próximo escaneo programado:</span> <span class="text-white">${nextAutoScan}</span></div>
+                    </div>
                 </div>
             `;
 

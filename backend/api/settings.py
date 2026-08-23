@@ -21,6 +21,40 @@ async def get_settings(user: dict = Depends(get_current_user)):
         camel_key = parts[0] + ''.join(p.capitalize() for p in parts[1:])
         camel_settings[camel_key] = value
     
+    # Add last scan info from database
+    from backend.database import async_session, ScanStatus
+    from sqlalchemy import select
+    from datetime import datetime, timedelta, timezone
+    
+    async with async_session() as session:
+        result = await session.execute(select(ScanStatus).limit(1))
+        scan_status = result.scalar_one_or_none()
+        
+        if scan_status and scan_status.last_scan_at:
+            camel_settings["lastAutoScan"] = scan_status.last_scan_at.isoformat()
+            
+            # Calculate next scan based on interval
+            if camel_settings.get("autoScanEnabled"):
+                value = camel_settings.get("autoScanValue", 7)
+                unit = camel_settings.get("autoScanUnit", "days")
+                
+                multipliers = {
+                    "minutes": timedelta(minutes=value),
+                    "hours": timedelta(hours=value),
+                    "days": timedelta(days=value),
+                    "weeks": timedelta(weeks=value),
+                    "months": timedelta(days=value * 30),
+                }
+                
+                delta = multipliers.get(unit, timedelta(days=value))
+                next_scan = scan_status.last_scan_at + delta
+                camel_settings["nextAutoScan"] = next_scan.isoformat()
+            else:
+                camel_settings["nextAutoScan"] = None
+        else:
+            camel_settings["lastAutoScan"] = None
+            camel_settings["nextAutoScan"] = None
+    
     return camel_settings
 
 
