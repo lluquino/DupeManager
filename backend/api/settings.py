@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends
 from backend.auth import get_current_user
-from backend.actions.trash import empty_trash, get_trash_info, list_trash_files
+from backend.actions.trash import empty_trash, get_trash_info, list_trash_files, restore_file, delete_file_from_trash
 from backend.settings_service import get_all_settings, update_settings
 from backend.notifications.service import send_test_notification
 
@@ -101,6 +101,28 @@ async def get_trash_info_endpoint(user: dict = Depends(get_current_user)):
     info = get_trash_info()
     info["files"] = list_trash_files()
     return info
+
+
+@router.post("/trash/restore")
+async def restore_trash_file(body: dict, user: dict = Depends(get_current_user)):
+    """Restaura un archivo de la papelera a su ubicación original"""
+    rel_path = body.get("path")
+    if not rel_path:
+        return {"success": False, "error": "Ruta del archivo no proporcionada"}
+    
+    result = restore_file(rel_path)
+    return result
+
+
+@router.post("/trash/delete")
+async def delete_trash_file(body: dict, user: dict = Depends(get_current_user)):
+    """Elimina permanentemente un archivo de la papelera"""
+    rel_path = body.get("path")
+    if not rel_path:
+        return {"success": False, "error": "Ruta del archivo no proporcionada"}
+    
+    result = delete_file_from_trash(rel_path)
+    return result
 
 
 @router.post("/rebuild-db")

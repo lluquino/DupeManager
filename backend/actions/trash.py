@@ -208,6 +208,67 @@ def list_trash_files(trash_path: str = None) -> list[dict]:
     return files
 
 
+def restore_file(rel_path: str, trash_path: str = None) -> dict:
+    """
+    Restaura un archivo de la papelera a su ubicación original.
+    
+    Args:
+        rel_path: Ruta relativa del archivo dentro de la papelera
+        trash_path: Ruta base de la papelera
+    
+    Returns:
+        dict con resultado de la operación
+    """
+    import shutil
+    
+    if trash_path is None:
+        trash_path = settings.trash_path
+    
+    source = os.path.join(trash_path, rel_path)
+    
+    if not os.path.exists(source):
+        return {"success": False, "error": "Archivo no encontrado en la papelera"}
+    
+    # Reconstruct original path
+    # trash_path/media/... -> /media/...
+    media_path = settings.media_path
+    dest = os.path.join(media_path, rel_path)
+    
+    try:
+        # Create destination directory if needed
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.move(source, dest)
+        return {"success": True, "restored": rel_path, "destination": dest}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def delete_file_from_trash(rel_path: str, trash_path: str = None) -> dict:
+    """
+    Elimina permanentemente un archivo de la papelera.
+    
+    Args:
+        rel_path: Ruta relativa del archivo dentro de la papelera
+    
+    Returns:
+        dict con resultado de la operación
+    """
+    if trash_path is None:
+        trash_path = settings.trash_path
+    
+    filepath = os.path.join(trash_path, rel_path)
+    
+    if not os.path.exists(filepath):
+        return {"success": False, "error": "Archivo no encontrado"}
+    
+    try:
+        size = os.path.getsize(filepath)
+        os.remove(filepath)
+        return {"success": True, "deleted": rel_path, "freedBytes": size}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 class TrashCleanupScheduler:
     """
     Scheduler para limpieza automática de la papelera.

@@ -378,12 +378,24 @@ const Settings = {
 
         // Render files
         container.innerHTML = pageFiles.map(f => `
-            <div class="flex items-center justify-between text-sm py-2 px-3 rounded hover:bg-slate-800/50">
+            <div class="flex items-center justify-between text-sm py-2 px-3 rounded hover:bg-slate-800/50 group" id="trash-file-${this.hashCode(f.path)}">
                 <div class="flex-1 min-w-0">
                     <div class="text-slate-300 truncate" title="${f.path}">${f.name}</div>
                     <div class="text-slate-500 text-xs truncate" title="${f.path}">${f.path.substring(0, f.path.lastIndexOf('/') + 1)}</div>
                 </div>
-                <span class="text-slate-400 ml-4 whitespace-nowrap">${this.formatSize(f.size)}</span>
+                <span class="text-slate-400 ml-4 whitespace-nowrap mr-2">${this.formatSize(f.size)}</span>
+                <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onclick="Settings.restoreTrashFile('${f.path.replace(/'/g, "\\'")}')"
+                        class="text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/40"
+                        title="Restaurar a ubicación original">
+                        ↩️
+                    </button>
+                    <button onclick="Settings.deleteTrashFile('${f.path.replace(/'/g, "\\'")}', '${f.name.replace(/'/g, "\\'")}')"
+                        class="text-xs px-2 py-1 rounded bg-red-600/20 text-red-400 hover:bg-red-600/40"
+                        title="Eliminar permanentemente">
+                        🗑️
+                    </button>
+                </div>
             </div>
         `).join('');
 
@@ -446,5 +458,70 @@ const Settings = {
         } catch (err) {
             Toast.error('Error al vaciar la papelera');
         }
+    },
+
+    async restoreTrashFile(path) {
+        try {
+            Toast.info('Restaurando archivo...');
+            const result = await API.post('/settings/trash/restore', { path });
+            if (result.success) {
+                Toast.success(`Archivo restaurado a: ${result.destination}`);
+                // Refresh modal
+                const trashInfo = await API.get('/settings/trash/info');
+                this._trashFiles = trashInfo.files || [];
+                this.filterTrashFiles();
+                // Update count in modal
+                const countEl = document.getElementById('trash-modal-count');
+                if (countEl) {
+                    countEl.textContent = this._trashSearch
+                        ? `${this._trashFiltered.length} resultado(s) de ${this._trashFiles.length}`
+                        : `${this._trashFiles.length} archivo(s)`;
+                }
+            } else {
+                Toast.error(result.error || 'Error al restaurar');
+            }
+        } catch (err) {
+            Toast.error(`Error: ${err.message}`);
+        }
+    },
+
+    async deleteTrashFile(path, name) {
+        Components.confirmModal(
+            'Eliminar permanentemente',
+            `¿Eliminar "${name}" permanentemente? Esta acción no se puede deshacer.`,
+            async () => {
+                try {
+                    Toast.info('Eliminando archivo...');
+                    const result = await API.post('/settings/trash/delete', { path });
+                    if (result.success) {
+                        Toast.success('Archivo eliminado');
+                        // Refresh modal
+                        const trashInfo = await API.get('/settings/trash/info');
+                        this._trashFiles = trashInfo.files || [];
+                        this.filterTrashFiles();
+                        const countEl = document.getElementById('trash-modal-count');
+                        if (countEl) {
+                            countEl.textContent = this._trashSearch
+                                ? `${this._trashFiltered.length} resultado(s) de ${this._trashFiles.length}`
+                                : `${this._trashFiles.length} archivo(s)`;
+                        }
+                    } else {
+                        Toast.error(result.error || 'Error al eliminar');
+                    }
+                } catch (err) {
+                    Toast.error(`Error: ${err.message}`);
+                }
+            }
+        );
+    },
+
+    hashCode(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash |= 0;
+        }
+        return Math.abs(hash).toString(36);
     }
 };
