@@ -7,6 +7,21 @@ const App = {
         Auth.init();
         Toast.init();
 
+        // Mobile menu toggle
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileNav = document.getElementById('mobile-nav');
+        if (mobileMenuBtn && mobileNav) {
+            mobileMenuBtn.addEventListener('click', () => {
+                mobileNav.classList.toggle('hidden');
+            });
+            // Close mobile nav when clicking a link
+            mobileNav.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', () => {
+                    mobileNav.classList.add('hidden');
+                });
+            });
+        }
+
         // Check auth state
         if (API.isAuthenticated()) {
             this.showMainView();
@@ -40,10 +55,16 @@ const App = {
         const hash = window.location.hash.slice(1) || '/';
         this.currentRoute = hash;
 
-        // Update nav links
+        // Update nav links (desktop)
         document.querySelectorAll('.nav-link').forEach(link => {
             const route = link.getAttribute('data-route');
             link.classList.toggle('active', route === hash);
+        });
+
+        // Update nav links (mobile)
+        document.querySelectorAll('.mobile-nav-link').forEach(link => {
+            const route = link.getAttribute('data-route');
+            link.classList.toggle('bg-slate-700', route === hash);
         });
 
         // Render view
