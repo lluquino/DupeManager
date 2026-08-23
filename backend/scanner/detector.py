@@ -354,26 +354,67 @@ async def run_full_scan(
         
         scan_status.running = True
         scan_status.progress = 0
-        scan_status.message = "Obteniendo episodios de Jellyfin..."
+        scan_status.message = "Iniciando escaneo..."
         scan_status.error = None
         await session.commit()
         
-        # Obtener todos los episodios
-        print("[SCAN] Fetching episodes from Jellyfin...", flush=True)
-        all_episodes = []
-        start_index = 0
-        limit = 500
-        
         async with httpx.AsyncClient(timeout=60.0) as client:
+            # ── Paso 0: Obtener totales para calcular porcentajes ──
+            ep_total_count = 0
+            movie_total_count = 0
+            
+            try:
+                r = await client.get(f"{jellyfin_url}/Items", params={
+                    "api_key": api_key, "Recursive": "true",
+                    "IncludeItemTypes": "Episode", "Limit": 1,
+                })
+                r.raise_for_status()
+                ep_total_count = r.json().get("TotalRecordCount", 0)
+            except Exception:
+                pass
+            
+            try:
+                r = await client.get(f"{jellyfin_url}/Items", params={
+                    "api_key": api_key, "Recursive": "true",
+                    "IncludeItemTypes": "Movie", "Limit": 1,
+                })
+                r.raise_for_status()
+                movie_total_count = r.json().get("TotalRecordCount", 0)
+            except Exception:
+                pass
+            
+            # Calcular porcentajes: 90% descarga (proporcional), 10% procesado (5%+5%)
+            total_items = ep_total_count + movie_total_count
+            if total_items > 0:
+                ep_fetch_pct = round(90 * ep_total_count / total_items)
+                movie_fetch_pct = 90 - ep_fetch_pct
+            else:
+                ep_fetch_pct = 45
+                movie_fetch_pct = 45
+            
+            ep_proc_start = ep_fetch_pct
+            ep_proc_end = ep_fetch_pct + 5
+            movie_fetch_start = ep_proc_end
+            movie_fetch_end = ep_proc_end + movie_fetch_pct
+            movie_proc_start = movie_fetch_end
+            
+            print(f"[SCAN] Totals: {ep_total_count} episodes, {movie_total_count} movies", flush=True)
+            print(f"[SCAN] Progress: ep_fetch=0-{ep_fetch_pct}%, ep_proc={ep_proc_start}-{ep_proc_end}%, "
+                  f"movie_fetch={movie_fetch_start}-{movie_fetch_end}%, movie_proc={movie_proc_start}-100%", flush=True)
+            
+            # ── Paso 1: Descargar episodios (0% → ep_fetch_pct%) ──
+            print("[SCAN] Fetching episodes from Jellyfin...", flush=True)
+            all_episodes = []
+            start_index = 0
+            limit = 500
+            
             while True:
                 try:
                     params = {
-                        "api_key": api_key,
-                        "Recursive": "true",
+                        "api_key": api_key, "Recursive": "true",
                         "IncludeItemTypes": "Episode",
                         "Fields": "Path,MediaStreams,Size,ProductionYear,SeriesName,SeasonIndexNumber,IndexNumber,LocationType",
-                        "Limit": limit,
-                        "StartIndex": start_index,
+                        "Limit": limit, "StartIndex": start_index,
                     }
                     response = await client.get(f"{jellyfin_url}/Items", params=params)
                     response.raise_for_status()
@@ -384,8 +425,7 @@ async def run_full_scan(
                     all_episodes.extend(items)
                     start_index += len(items)
                     
-                    # Update progress: fetching episodes is 0-10%
-                    fetch_pct = (start_index / total * 10) if total > 0 else 0
+                    fetch_pct = round(start_index / total * ep_fetch_pct) if total > 0 else 0
                     if progress_callback:
                         progress_callback(fetch_pct, f"Descargando episodios: {start_index}/{total}")
                     print(f"[SCAN] Episodes: {start_index}/{total}", flush=True)
@@ -395,41 +435,33 @@ async def run_full_scan(
                 except Exception as e:
                     print(f"[SCAN] Error fetching episodes: {e}", flush=True)
                     break
-        
-        print(f"[SCAN] Total episodes fetched: {len(all_episodes)}", flush=True)
-        stats["episodes"]["total"] = len(all_episodes)
-        
-        # Escanear episodios (10-50%)
-        def ep_progress(current, total, message):
-            progress = 10 + (current / total * 40) if total > 0 else 10
+            
+            print(f"[SCAN] Total episodes fetched: {len(all_episodes)}", flush=True)
+            stats["episodes"]["total"] = len(all_episodes)
+            
+            # ── Paso 2: Procesar episodios (ep_proc_start% → ep_proc_end%) ──
+            def ep_progress(current, total_items_proc, message):
+                progress = ep_proc_start + round((current / total_items_proc) * 5) if total_items_proc > 0 else ep_proc_start
+                if progress_callback:
+                    progress_callback(progress, message)
+            
+            ep_stats = await scan_episodes(session, all_episodes, progress_callback=ep_progress)
+            stats["episodes"] = ep_stats
+            
+            # ── Paso 3: Descargar películas (movie_fetch_start% → movie_fetch_end%) ──
             if progress_callback:
-                progress_callback(progress, message)
-        
-        ep_stats = await scan_episodes(session, all_episodes, progress_callback=ep_progress)
-        stats["episodes"] = ep_stats
-        
-        # Actualizar progreso
-        if progress_callback:
-            progress_callback(50, "Descargando películas...")
-        scan_status.progress = 50
-        scan_status.message = "Obteniendo películas de Jellyfin..."
-        await session.commit()
-        
-        # Obtener todas las películas
-        print("[SCAN] Fetching movies from Jellyfin...", flush=True)
-        all_movies = []
-        start_index = 0
-        
-        async with httpx.AsyncClient(timeout=60.0) as client:
+                progress_callback(movie_fetch_start, "Descargando películas...")
+            print("[SCAN] Fetching movies from Jellyfin...", flush=True)
+            all_movies = []
+            start_index = 0
+            
             while True:
                 try:
                     params = {
-                        "api_key": api_key,
-                        "Recursive": "true",
+                        "api_key": api_key, "Recursive": "true",
                         "IncludeItemTypes": "Movie",
                         "Fields": "Path,MediaStreams,Size,ProductionYear,LocationType",
-                        "Limit": limit,
-                        "StartIndex": start_index,
+                        "Limit": limit, "StartIndex": start_index,
                     }
                     response = await client.get(f"{jellyfin_url}/Items", params=params)
                     response.raise_for_status()
@@ -440,8 +472,7 @@ async def run_full_scan(
                     all_movies.extend(items)
                     start_index += len(items)
                     
-                    # Update progress: fetching movies is 50-60%
-                    fetch_pct = 50 + (start_index / total * 10) if total > 0 else 50
+                    fetch_pct = movie_fetch_start + round(start_index / total * movie_fetch_pct) if total > 0 else movie_fetch_start
                     if progress_callback:
                         progress_callback(fetch_pct, f"Descargando películas: {start_index}/{total}")
                     print(f"[SCAN] Movies: {start_index}/{total}", flush=True)
@@ -451,18 +482,18 @@ async def run_full_scan(
                 except Exception as e:
                     print(f"[SCAN] Error fetching movies: {e}", flush=True)
                     break
-        
-        print(f"[SCAN] Total movies fetched: {len(all_movies)}", flush=True)
-        stats["movies"]["total"] = len(all_movies)
-        
-        # Escanear películas (60-100%)
-        def movie_progress(current, total, message):
-            progress = 60 + (current / total * 40) if total > 0 else 60
-            if progress_callback:
-                progress_callback(progress, message)
-        
-        movie_stats = await scan_movies(session, all_movies, progress_callback=movie_progress)
-        stats["movies"] = movie_stats
+            
+            print(f"[SCAN] Total movies fetched: {len(all_movies)}", flush=True)
+            stats["movies"]["total"] = len(all_movies)
+            
+            # ── Paso 4: Procesar películas (movie_proc_start% → 100%) ──
+            def movie_progress(current, total_items_proc, message):
+                progress = movie_proc_start + round((current / total_items_proc) * 5) if total_items_proc > 0 else movie_proc_start
+                if progress_callback:
+                    progress_callback(progress, message)
+            
+            movie_stats = await scan_movies(session, all_movies, progress_callback=movie_progress)
+            stats["movies"] = movie_stats
         
         # Finalizar escaneo
         scan_status.running = False
