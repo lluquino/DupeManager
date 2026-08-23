@@ -340,14 +340,17 @@ async def run_full_scan(
     }
     
     async with async_session() as session:
-        # Actualizar estado de escaneo
-        scan_status = ScanStatus(id=1)
-        session.add(scan_status)
-        await session.flush()
+        # Actualizar estado de escaneo (obtener o crear)
+        result = await session.execute(select(ScanStatus).where(ScanStatus.id == 1))
+        scan_status = result.scalar_one_or_none()
+        if not scan_status:
+            scan_status = ScanStatus(id=1)
+            session.add(scan_status)
         
         scan_status.running = True
         scan_status.progress = 0
         scan_status.message = "Obteniendo episodios de Jellyfin..."
+        scan_status.error = None
         await session.commit()
         
         # Obtener todos los episodios
