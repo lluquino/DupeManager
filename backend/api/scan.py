@@ -11,14 +11,20 @@ router = APIRouter()
 async def start_scan(user: dict = Depends(get_current_user)):
     """
     Inicia un escaneo completo en background.
-    
-    Requiere autenticación de administrador.
+    Si ya hay uno en curso, lo cancela y lanza uno nuevo.
     """
     jellyfin_token = user.get("jellyfin_token")
     if not jellyfin_token:
         return {"status": "error", "message": "Token de Jellyfin no disponible"}
     
     result = await scan_queue.start(jellyfin_token)
+    return result
+
+
+@router.post("/cancel")
+async def cancel_scan():
+    """Cancela el escaneo en curso"""
+    result = scan_queue.cancel()
     return result
 
 

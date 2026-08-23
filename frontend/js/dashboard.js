@@ -91,14 +91,9 @@ const Dashboard = {
         Toast.progress('Iniciando escaneo...', 0);
 
         try {
-            // Start scan (returns immediately)
+            // Start scan (cancels previous if running)
             const result = await API.post('/scan');
             
-            if (result.status === 'already_running') {
-                Toast.info('Ya hay un escaneo en curso');
-                return;
-            }
-
             // Poll for progress
             await this.pollScanProgress();
 
@@ -128,6 +123,10 @@ const Dashboard = {
                     if (status.error) {
                         throw new Error(status.error);
                     }
+                    if (status.message === 'Escaneo cancelado') {
+                        Toast.info('Escaneo cancelado');
+                        return;
+                    }
                     return;
                 }
                 
@@ -137,10 +136,10 @@ const Dashboard = {
                 Toast.progress(message, progress);
                 
             } catch (err) {
-                if (err.message.includes('running')) {
+                // Network error or scan error
+                if (err.message && !err.message.includes('NetworkError')) {
                     throw err;
                 }
-                // Network error, keep polling
                 console.error('Poll error:', err);
             }
         }
