@@ -99,7 +99,7 @@ async def empty_trash_endpoint(user: dict = Depends(get_current_user)):
 async def get_trash_info_endpoint(user: dict = Depends(get_current_user)):
     """Obtiene información sobre la papelera incluyendo lista de archivos"""
     info = get_trash_info()
-    info["files"] = list_trash_files()
+    info["files"] = await list_trash_files()
     return info
 
 

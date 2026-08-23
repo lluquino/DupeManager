@@ -170,13 +170,15 @@ def get_trash_info(trash_path: str = None) -> dict:
     return info
 
 
-def list_trash_files(trash_path: str = None) -> list[dict]:
+async def list_trash_files(trash_path: str = None) -> list[dict]:
     """
     Lista los archivos en la papelera con su tamaño y tiempo hasta borrado.
     
     Returns:
         Lista de dicts con name, path, size, modified, deleteAt, timeRemaining
     """
+    from backend.settings_service import get_all_settings
+    
     if trash_path is None:
         trash_path = settings.trash_path
     
@@ -185,9 +187,10 @@ def list_trash_files(trash_path: str = None) -> list[dict]:
     if not os.path.exists(trash_path):
         return files
     
-    # Get retention settings
-    retention_value = settings.trash_retention_value
-    retention_unit = settings.trash_retention_unit
+    # Get retention settings from database (not .env)
+    db_settings = await get_all_settings()
+    retention_value = db_settings.get("trash_retention_value", settings.trash_retention_value)
+    retention_unit = db_settings.get("trash_retention_unit", settings.trash_retention_unit)
     
     # Calculate retention in seconds
     unit_seconds = {
