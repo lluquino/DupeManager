@@ -11,6 +11,25 @@ from backend.api.helpers import format_copy
 router = APIRouter()
 
 
+def format_movie_group(g):
+    """Formatea un grupo de películas con metadatos en cada copia"""
+    copies = []
+    for c in g.copies:
+        copy_data = format_copy(c)
+        copy_data["movieName"] = g.name
+        copy_data["movieYear"] = g.year
+        copies.append(copy_data)
+    
+    return {
+        "groupId": g.group_id,
+        "name": g.name,
+        "year": g.year,
+        "status": g.status,
+        "totalSize": g.total_size,
+        "copies": copies,
+    }
+
+
 @router.get("")
 async def list_movies(
     status: str = None,
@@ -38,17 +57,7 @@ async def list_movies(
                 if search_lower in (g.name or "").lower()
             ]
     
-    return [
-        {
-            "groupId": g.group_id,
-            "name": g.name,
-            "year": g.year,
-            "status": g.status,
-            "totalSize": g.total_size,
-            "copies": [format_copy(c) for c in g.copies],
-        }
-        for g in groups
-    ]
+    return [format_movie_group(g) for g in groups]
 
 
 @router.get("/{group_id}")
@@ -65,14 +74,7 @@ async def get_movie_group(group_id: str, user: dict = Depends(get_current_user))
         if not group:
             return {"error": "Grupo no encontrado"}
     
-    return {
-        "groupId": group.group_id,
-        "name": group.name,
-        "year": group.year,
-        "status": group.status,
-        "totalSize": group.total_size,
-        "copies": [format_copy(c) for c in group.copies],
-    }
+    return format_movie_group(group)
 
 
 @router.post("/{group_id}/action")

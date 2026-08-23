@@ -107,14 +107,21 @@ const Wizard = {
             const isSelected = selected.includes(copy.id);
             card.classList.toggle('selected', isSelected);
 
-            // Update badge text
+            // Update checkbox
+            const checkbox = card.querySelector('.copy-checkbox');
+            if (checkbox) checkbox.checked = isSelected;
+
+            // Update badge
             const badge = card.querySelector('.quality-badge');
             if (badge) {
+                const bestId = group.copies.reduce((best, c) =>
+                    (c.qualityScore > (best?.qualityScore || -1)) ? c : best
+                , null)?.id;
+
                 if (isSelected) {
                     badge.className = 'quality-badge quality-selected';
                     badge.textContent = '☑️ Seleccionada';
-                } else if (copy.id === group.copies.reduce((best, c) =>
-                    (c.qualityScore > (best?.qualityScore || -1)) ? c : best, null)?.id) {
+                } else if (copy.id === bestId) {
                     badge.className = 'quality-badge quality-best';
                     badge.textContent = '✅ Mejor';
                 } else {
@@ -234,6 +241,29 @@ const Wizard = {
         document.body.appendChild(overlay);
     },
 
+    renderMetadata(copy) {
+        const isEpisode = copy.seriesName !== undefined;
+        
+        if (isEpisode) {
+            return `
+                <div class="flex flex-wrap gap-3 text-xs text-slate-400 mb-3">
+                    ${copy.jellyfinItemId ? `<span title="ID Jellyfin">🆔 ${copy.jellyfinItemId}</span>` : ''}
+                    ${copy.seriesName ? `<span>📺 ${copy.seriesName}</span>` : ''}
+                    ${copy.seasonNumber != null ? `<span>🎬 T${String(copy.seasonNumber).padStart(2, '0')}</span>` : ''}
+                    ${copy.episodeNumber != null ? `<span>EP${String(copy.episodeNumber).padStart(2, '0')}</span>` : ''}
+                </div>
+            `;
+        } else {
+            return `
+                <div class="flex flex-wrap gap-3 text-xs text-slate-400 mb-3">
+                    ${copy.jellyfinItemId ? `<span title="ID Jellyfin">🆔 ${copy.jellyfinItemId}</span>` : ''}
+                    ${copy.movieName ? `<span>🎬 ${copy.movieName}</span>` : ''}
+                    ${copy.movieYear ? `<span>📅 ${copy.movieYear}</span>` : ''}
+                </div>
+            `;
+        }
+    },
+
     renderCopyCard(copy, bestId, selected) {
         const isSelected = selected.includes(copy.id);
         const isBest = copy.id === bestId;
@@ -267,13 +297,18 @@ const Wizard = {
         return `
             <div id="copy-card-${copy.id}" class="copy-card ${isBest ? 'best' : ''} ${isSelected ? 'selected' : ''} cursor-pointer"
                  onclick="Wizard.toggleCopySelection(${copy.id})">
-                <!-- Header -->
+                <!-- Header with checkbox and badge -->
                 <div class="flex items-center gap-3 mb-3">
+                    <input type="checkbox" class="copy-checkbox rounded" ${isSelected ? 'checked' : ''}
+                        onclick="event.stopPropagation(); Wizard.toggleCopySelection(${copy.id})">
                     <span class="quality-badge ${isBest ? 'quality-best' : 'quality-normal'}">
-                        ${isSelected ? '☑️ Seleccionada' : isBest ? '✅ Mejor' : '⚪ Copia'}
+                        ${isBest ? '✅ Mejor' : '⚪ Copia'}
                     </span>
                     <span class="text-sm text-slate-400 ml-auto">Score: ${copy.qualityScore}</span>
                 </div>
+
+                <!-- Jellyfin metadata -->
+                ${this.renderMetadata(copy)}
 
                 <!-- File info -->
                 <div class="space-y-1.5 text-sm mb-3">

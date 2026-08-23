@@ -11,6 +11,27 @@ from backend.api.helpers import format_copy
 router = APIRouter()
 
 
+def format_episode_group(g):
+    """Formatea un grupo de episodios con metadatos en cada copia"""
+    copies = []
+    for c in g.copies:
+        copy_data = format_copy(c)
+        copy_data["seriesName"] = g.series_name
+        copy_data["seasonNumber"] = g.season
+        copy_data["episodeNumber"] = g.episode
+        copies.append(copy_data)
+    
+    return {
+        "groupId": g.group_id,
+        "seriesName": g.series_name,
+        "season": g.season,
+        "episode": g.episode,
+        "status": g.status,
+        "totalSize": g.total_size,
+        "copies": copies,
+    }
+
+
 @router.get("")
 async def list_episodes(
     status: str = None,
@@ -43,18 +64,7 @@ async def list_episodes(
                 or search_lower in f"s{g.season:02d}e{g.episode:02d}"
             ]
     
-    return [
-        {
-            "groupId": g.group_id,
-            "seriesName": g.series_name,
-            "season": g.season,
-            "episode": g.episode,
-            "status": g.status,
-            "totalSize": g.total_size,
-            "copies": [format_copy(c) for c in g.copies],
-        }
-        for g in groups
-    ]
+    return [format_episode_group(g) for g in groups]
 
 
 @router.get("/{group_id}")
@@ -71,15 +81,7 @@ async def get_episode_group(group_id: str, user: dict = Depends(get_current_user
         if not group:
             return {"error": "Grupo no encontrado"}
     
-    return {
-        "groupId": group.group_id,
-        "seriesName": group.series_name,
-        "season": group.season,
-        "episode": group.episode,
-        "status": group.status,
-        "totalSize": group.total_size,
-        "copies": [format_copy(c) for c in group.copies],
-    }
+    return format_episode_group(group)
 
 
 @router.post("/{group_id}/action")

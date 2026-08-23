@@ -76,4 +76,12 @@ def format_copy(copy) -> dict:
         "audioTracks": audio_tracks,
         "subtitleTracks": subtitle_tracks,
         "videoInfo": video_info,
+        # Jellyfin metadata from parent group
+        "seriesName": getattr(copy, '_series_name', None),
+        "seriesId": getattr(copy, '_series_id', None),
+        "seasonNumber": getattr(copy, '_season_number', None),
+        "episodeNumber": getattr(copy, '_episode_number', None),
+        "movieName": getattr(copy, '_movie_name', None),
+        "movieId": getattr(copy, '_movie_id', None),
+        "movieYear": getattr(copy, '_movie_year', None),
     }
