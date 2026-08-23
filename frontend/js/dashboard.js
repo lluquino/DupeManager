@@ -58,6 +58,33 @@ const Dashboard = {
         // Event listeners
         document.getElementById('btn-scan').addEventListener('click', () => this.startScan());
         document.getElementById('btn-review').addEventListener('click', () => Wizard.open());
+
+        // Check if a scan is already running (e.g. after page reload)
+        this.resumeScanIfRunning();
+    },
+
+    async resumeScanIfRunning() {
+        try {
+            const status = await API.get('/scan/status');
+            if (status.running) {
+                // Resume polling for the active scan
+                this._scanPolling = true;
+                const btn = document.getElementById('btn-scan');
+                btn.disabled = true;
+                btn.textContent = '⏳ Escaneando...';
+                
+                Toast.progress(status.message || 'Escaneando...', status.progress || 0);
+                await this.pollScanProgress();
+                
+                Toast.closeProgress();
+                Toast.success('Escaneo completado');
+                btn.disabled = false;
+                btn.textContent = '🔍 Escanear Ahora';
+                await this.loadData();
+            }
+        } catch (err) {
+            console.error('Error checking scan status:', err);
+        }
     },
 
     async loadData() {
