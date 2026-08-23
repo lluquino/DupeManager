@@ -331,8 +331,8 @@ const Wizard = {
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-slate-300">
                         🎞️ ${(copy.codec || '?').toUpperCase()}
                     </span>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                        📦 ${this.formatSize(copy.size)}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded ${copy.fileExists ? 'bg-slate-800 text-slate-300' : 'bg-red-900/30 text-red-400'}">
+                        📦 ${copy.fileExists ? this.formatSize(copy.size) : '⚠️ Archivo no encontrado'}
                     </span>
                 </div>
 

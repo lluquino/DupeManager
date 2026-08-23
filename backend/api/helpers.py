@@ -1,6 +1,7 @@
 """DupeManager — Helper para formatear datos de copias"""
 
 import json
+import os
 from typing import Optional
 
 
@@ -69,6 +70,7 @@ def format_copy(copy) -> dict:
         "path": copy.path,
         "filename": copy.filename,
         "size": copy.size,
+        "fileExists": os.path.isfile(copy.path) if copy.path else False,
         "resolution": copy.resolution,
         "codec": copy.codec,
         "qualityScore": copy.quality_score,
