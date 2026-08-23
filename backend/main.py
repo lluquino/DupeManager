@@ -1,5 +1,6 @@
 """DupeManager — FastAPI Application"""
 
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -10,14 +11,36 @@ from backend.config import settings
 from backend.database import init_db
 
 
+async def trash_cleanup_loop():
+    """Background task para limpieza periódica de la papelera"""
+    while True:
+        await asyncio.sleep(3600)  # Cada hora
+        try:
+            from backend.actions.trash import trash_scheduler
+            if settings.trash_enabled:
+                trash_scheduler.run_cleanup()
+        except Exception as e:
+            print(f"Error en limpieza de papelera: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     # Startup
     await init_db()
     print(f"✅ DupeManager started on {settings.host}:{settings.port}")
+    
+    # Iniciar cleanup loop en background
+    task = asyncio.create_task(trash_cleanup_loop())
+    
     yield
+    
     # Shutdown
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
     print("👋 DupeManager shutting down")
 
 
