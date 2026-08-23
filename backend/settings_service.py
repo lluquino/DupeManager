@@ -11,21 +11,21 @@ from backend.config import settings as default_settings
 
 # Defaults desde .env
 DEFAULTS = {
-    "trash_enabled": default_settings.trash_enabled,
-    "trash_retention_value": default_settings.trash_retention_value,
-    "trash_retention_unit": default_settings.trash_retention_unit,
-    "auto_scan_enabled": default_settings.auto_scan_enabled,
-    "auto_scan_value": default_settings.auto_scan_value,
-    "auto_scan_unit": default_settings.auto_scan_unit,
-    "notifications_browser": default_settings.notifications_browser,
-    "notifications_webhook_enabled": default_settings.notifications_webhook_enabled,
-    "notifications_webhook_url": default_settings.notifications_webhook_url,
-    "notifications_email_enabled": default_settings.notifications_email_enabled,
-    "notifications_email_smtp_host": default_settings.notifications_email_smtp_host,
-    "notifications_email_smtp_port": default_settings.notifications_email_smtp_port,
-    "notifications_email_username": default_settings.notifications_email_username,
-    "notifications_email_password": default_settings.notifications_email_password,
-    "notifications_email_to": default_settings.notifications_email_to,
+    "trash_enabled": True,
+    "trash_retention_value": 30,
+    "trash_retention_unit": "days",
+    "auto_scan_enabled": True,
+    "auto_scan_value": 1,
+    "auto_scan_unit": "days",
+    "notifications_browser": False,
+    "notifications_webhook_enabled": False,
+    "notifications_webhook_url": "",
+    "notifications_email_enabled": False,
+    "notifications_email_smtp_host": "",
+    "notifications_email_smtp_port": 587,
+    "notifications_email_username": "",
+    "notifications_email_password": "",
+    "notifications_email_to": "",
 }
 
 
