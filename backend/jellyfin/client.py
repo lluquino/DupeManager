@@ -21,12 +21,20 @@ class JellyfinClient:
         method: str,
         path: str,
         token: Optional[str] = None,
+        use_api_key: bool = True,
         **kwargs,
     ) -> dict[str, Any]:
         """Realiza una petición a la API de Jellyfin"""
-        headers = {**self.headers}
+        headers = {}
+        
+        # Añadir Authorization header
         if token:
             headers["X-Emby-Token"] = token
+        elif use_api_key and self.api_key:
+            # Usar api_key como header si no hay token de usuario
+            pass  # api_key va como query param
+        
+        headers["X-Emby-Authorization"] = 'MediaBrowser Client="DupeManager", Device="Linux", DeviceId="dupemanager", Version="1.0.0"'
 
         url = f"{self.base_url}{path}"
 
@@ -53,7 +61,7 @@ class JellyfinClient:
 
     async def get_episodes(
         self,
-        token: str,
+        token: str = None,
         limit: int = 500,
         start_index: int = 0,
     ) -> dict:
@@ -74,7 +82,7 @@ class JellyfinClient:
 
     async def get_movies(
         self,
-        token: str,
+        token: str = None,
         limit: int = 500,
         start_index: int = 0,
     ) -> dict:
