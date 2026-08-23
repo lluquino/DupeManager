@@ -33,7 +33,7 @@ const Toast = {
         return toast;
     },
 
-    success(message, duration = 3000) {
+    success(message, duration = 0) {
         return this.show(message, 'success', duration);
     },
 

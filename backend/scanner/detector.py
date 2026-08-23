@@ -63,7 +63,7 @@ async def scan_episodes(
     
     for i, item in enumerate(items):
         if progress_callback:
-            progress_callback(i + 1, len(items), f"Procesando: {item.get('SeriesName', 'Episodio')}")
+            progress_callback(i + 1, len(items), f"Procesando episodio {i + 1} de {len(items)}")
         
         path = item.get("Path", "")
         if not path:
@@ -207,7 +207,7 @@ async def scan_movies(
     
     for i, item in enumerate(items):
         if progress_callback:
-            progress_callback(i + 1, len(items), f"Procesando: {item.get('Name', 'Película')}")
+            progress_callback(i + 1, len(items), f"Procesando película {i + 1} de {len(items)}")
         
         path = item.get("Path", "")
         if not path:
