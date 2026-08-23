@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from backend.database import async_session, EpisodeDuplicate, EpisodeCopy, DuplicateStatus
 from backend.auth import get_current_user
+from backend.actions.manager import keep_best_and_remove_others, ignore_group
 
 router = APIRouter()
 
@@ -115,28 +116,30 @@ async def episode_action(
     body: dict,
     user: dict = Depends(get_current_user),
 ):
-    """Ejecuta una acción sobre un grupo (keep/ignore/skip)"""
+    """
+    Ejecuta una acción sobre un grupo:
+    - keep: Conservar la mejor, eliminar las peores
+    - ignore: Marcar como ignorado
+    - skip: No hacer nada
+    """
     action = body.get("action")
     
-    async with async_session() as session:
-        query = select(EpisodeDuplicate).where(
-            EpisodeDuplicate.group_id == group_id
+    if action == "keep":
+        # Obtener configuración de papelera
+        from backend.config import settings
+        result = await keep_best_and_remove_others(
+            group_id,
+            group_type="episode",
+            trash_enabled=settings.trash_enabled,
         )
-        result = await session.execute(query)
-        group = result.scalar_one_or_none()
-        
-        if not group:
-            return {"error": "Grupo no encontrado"}
-        
-        if action == "keep":
-            group.status = DuplicateStatus.RESOLVED
-        elif action == "ignore":
-            group.status = DuplicateStatus.IGNORED
-        elif action == "skip":
-            pass  # No cambiar estado
-        else:
-            return {"error": f"Acción no válida: {action}"}
-        
-        await session.commit()
+        return result
     
-    return {"success": True, "action": action, "groupId": group_id}
+    elif action == "ignore":
+        result = await ignore_group(group_id, group_type="episode")
+        return result
+    
+    elif action == "skip":
+        return {"success": True, "action": "skip", "groupId": group_id}
+    
+    else:
+        return {"success": False, "error": f"Acción no válida: {action}"}

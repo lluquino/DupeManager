@@ -1,9 +1,10 @@
 """DupeManager — API: Ignored"""
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, delete
-from backend.database import async_session, EpisodeDuplicate, MovieDuplicate, IgnoredDuplicate
+from sqlalchemy import select
+from backend.database import async_session, EpisodeDuplicate, MovieDuplicate
 from backend.auth import get_current_user
+from backend.actions.manager import restore_group, restore_many_groups
 
 router = APIRouter()
 
@@ -50,68 +51,15 @@ async def list_ignored(user: dict = Depends(get_current_user)):
 @router.post("/{group_id}/restore")
 async def restore_ignored(group_id: str, user: dict = Depends(get_current_user)):
     """Restaura un grupo ignorado a pendiente"""
-    async with async_session() as session:
-        # Intentar en episodios
-        ep_query = select(EpisodeDuplicate).where(
-            EpisodeDuplicate.group_id == group_id
-        )
-        result = await session.execute(ep_query)
-        ep_group = result.scalar_one_or_none()
-        
-        if ep_group:
-            ep_group.status = "pending"
-            await session.commit()
-            return {"success": True}
-        
-        # Intentar en películas
-        movie_query = select(MovieDuplicate).where(
-            MovieDuplicate.group_id == group_id
-        )
-        result = await session.execute(movie_query)
-        movie_group = result.scalar_one_or_none()
-        
-        if movie_group:
-            movie_group.status = "pending"
-            await session.commit()
-            return {"success": True}
-        
-        return {"error": "Grupo no encontrado"}
+    result = await restore_group(group_id)
+    return result
 
 
 @router.post("/restore-many")
 async def restore_many(body: dict = None, user: dict = Depends(get_current_user)):
     """Restaura múltiples grupos ignorados"""
     if not body or "groupIds" not in body:
-        return {"error": "groupIds requerido"}
+        return {"success": False, "error": "groupIds requerido"}
     
-    group_ids = body["groupIds"]
-    restored = 0
-    
-    async with async_session() as session:
-        for group_id in group_ids:
-            # Intentar en episodios
-            ep_query = select(EpisodeDuplicate).where(
-                EpisodeDuplicate.group_id == group_id
-            )
-            result = await session.execute(ep_query)
-            ep_group = result.scalar_one_or_none()
-            
-            if ep_group:
-                ep_group.status = "pending"
-                restored += 1
-                continue
-            
-            # Intentar en películas
-            movie_query = select(MovieDuplicate).where(
-                MovieDuplicate.group_id == group_id
-            )
-            result = await session.execute(movie_query)
-            movie_group = result.scalar_one_or_none()
-            
-            if movie_group:
-                movie_group.status = "pending"
-                restored += 1
-        
-        await session.commit()
-    
-    return {"success": True, "restored": restored}
+    result = await restore_many_groups(body["groupIds"])
+    return result
