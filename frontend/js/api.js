@@ -20,12 +20,18 @@ const API = {
         if (response.status === 401) {
             this.logout();
             window.location.hash = '#/';
-            return null;
+            throw new Error('Sesión expirada, inicia sesión de nuevo');
         }
 
         if (!response.ok) {
-            const error = await response.json().catch(() => ({ detail: 'Error desconocido' }));
-            throw new Error(error.detail || 'Error en la petición');
+            let detail = 'Error en la petición';
+            try {
+                const error = await response.json();
+                detail = error.detail || detail;
+            } catch (e) {
+                // Response is not JSON
+            }
+            throw new Error(detail);
         }
 
         return response.json();
