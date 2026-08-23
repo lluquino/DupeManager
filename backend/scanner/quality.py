@@ -73,29 +73,29 @@ RESOLUTIONS = {
 }
 
 
-def extract_resolution(filename: str, media_streams: dict | None = None) -> str | None:
+def extract_resolution(filename: str, media_streams: list | None = None) -> str | None:
     """
     Extrae la resolución del filename o de MediaStreams.
     
-    Prioridad:
-    1. MediaStreams (más preciso)
-    2. Filename
+    MediaStreams es una lista de dicts, cada uno con Type, Codec, Width, Height, etc.
     """
-    # Intentar de MediaStreams primero
-    if media_streams:
-        for stream in media_streams.get("VideoStream", []):
-            height = stream.get("Height")
-            if height:
-                if height >= 2160:
-                    return "2160p"
-                elif height >= 1440:
-                    return "1440p"
-                elif height >= 1080:
-                    return "1080p"
-                elif height >= 720:
-                    return "720p"
-                elif height >= 480:
-                    return "480p"
+    # Intentar de MediaStreams primero (lista de streams)
+    if media_streams and isinstance(media_streams, list):
+        for stream in media_streams:
+            if stream.get("Type") == "Video":
+                height = stream.get("Height")
+                if height:
+                    if height >= 2160:
+                        return "2160p"
+                    elif height >= 1440:
+                        return "1440p"
+                    elif height >= 1080:
+                        return "1080p"
+                    elif height >= 720:
+                        return "720p"
+                    elif height >= 480:
+                        return "480p"
+                break
     
     # Buscar en filename
     fname = Path(filename).name.lower()
@@ -123,16 +123,20 @@ def extract_resolution(filename: str, media_streams: dict | None = None) -> str 
     return None
 
 
-def extract_codec(filename: str, media_streams: dict | None = None) -> str | None:
+def extract_codec(filename: str, media_streams: list | None = None) -> str | None:
     """
     Extrae el codec de video del filename o de MediaStreams.
+    
+    MediaStreams es una lista de dicts, cada uno con Type, Codec, etc.
     """
-    # Intentar de MediaStreams primero
-    if media_streams:
-        for stream in media_streams.get("VideoStream", []):
-            codec = stream.get("Codec", "").lower()
-            if codec:
-                return codec
+    # Intentar de MediaStreams primero (lista de streams)
+    if media_streams and isinstance(media_streams, list):
+        for stream in media_streams:
+            if stream.get("Type") == "Video":
+                codec = stream.get("Codec", "").lower()
+                if codec:
+                    return codec
+                break
     
     # Buscar en filename
     fname = Path(filename).name.lower()
@@ -164,7 +168,7 @@ def is_3d(filename: str) -> bool:
 def calculate_quality_score(
     filename: str,
     size: float = 0,
-    media_streams: dict | None = None,
+    media_streams: list | None = None,
 ) -> dict:
     """
     Calcula el score de calidad de un archivo.
