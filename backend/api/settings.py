@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends
 from backend.auth import get_current_user
 from backend.actions.trash import empty_trash, get_trash_info
+from backend.settings_service import get_all_settings, update_settings
 
 router = APIRouter()
 
@@ -10,31 +11,33 @@ router = APIRouter()
 @router.get("")
 async def get_settings(user: dict = Depends(get_current_user)):
     """Obtiene la configuración actual"""
-    from backend.config import settings
-    
-    return {
-        "trashEnabled": settings.trash_enabled,
-        "trashRetentionValue": settings.trash_retention_value,
-        "trashRetentionUnit": settings.trash_retention_unit,
-        "autoScanEnabled": settings.auto_scan_enabled,
-        "autoScanValue": settings.auto_scan_value,
-        "autoScanUnit": settings.auto_scan_unit,
-        "notificationsBrowser": settings.notifications_browser,
-        "notificationsWebhookEnabled": settings.notifications_webhook_enabled,
-        "notificationsWebhookUrl": settings.notifications_webhook_url,
-        "notificationsEmailEnabled": settings.notifications_email_enabled,
-        "notificationsEmailSmtpHost": settings.notifications_email_smtp_host,
-        "notificationsEmailSmtpPort": settings.notifications_email_smtp_port,
-        "notificationsEmailUsername": settings.notifications_email_username,
-        "notificationsEmailPassword": settings.notifications_email_password,
-        "notificationsEmailTo": settings.notifications_email_to,
-    }
+    settings = await get_all_settings()
+    return settings
 
 
 @router.put("")
-async def update_settings(body: dict, user: dict = Depends(get_current_user)):
+async def update_settings_endpoint(body: dict, user: dict = Depends(get_current_user)):
     """Actualiza la configuración"""
-    # TODO: Hito 2.3 — Guardar en BD
+    # Filtrar solo campos válidos
+    valid_keys = [
+        "trashEnabled", "trashRetentionValue", "trashRetentionUnit",
+        "autoScanEnabled", "autoScanValue", "autoScanUnit",
+        "notificationsBrowser", "notificationsWebhookEnabled", "notificationsWebhookUrl",
+        "notificationsEmailEnabled", "notificationsEmailSmtpHost", "notificationsEmailSmtpPort",
+        "notificationsEmailUsername", "notificationsEmailPassword", "notificationsEmailTo",
+    ]
+    
+    # Convertir de camelCase a snake_case
+    settings_to_update = {}
+    for key, value in body.items():
+        if key in valid_keys:
+            # Convertir camelCase a snake_case
+            snake_key = ''.join(['_' + c.lower() if c.isupper() else c for c in key]).lstrip('_')
+            settings_to_update[snake_key] = value
+    
+    if settings_to_update:
+        await update_settings(settings_to_update)
+    
     return {"success": True, "message": "Configuración actualizada"}
 
 
@@ -61,12 +64,76 @@ async def get_trash_info_endpoint(user: dict = Depends(get_current_user)):
 async def rebuild_db(user: dict = Depends(get_current_user)):
     """Reconstruye la base de datos desde cero"""
     from backend.database import engine, Base
-    from backend.config import settings
     
     async with engine.begin() as conn:
-        # Eliminar tablas existentes
         await conn.run_sync(Base.metadata.drop_all)
-        # Recrear tablas
         await conn.run_sync(Base.metadata.create_all)
     
     return {"success": True, "message": "Base de datos reconstruida"}
+
+
+@router.post("/notifications/test-webhook")
+async def test_webhook(user: dict = Depends(get_current_user)):
+    """Envía un webhook de prueba"""
+    settings = await get_all_settings()
+    
+    if not settings.get("notifications_webhook_enabled"):
+        return {"success": False, "error": "Webhook no está habilitado"}
+    
+    url = settings.get("notifications_webhook_url")
+    if not url:
+        return {"success": False, "error": "URL del webhook no configurada"}
+    
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                json={
+                    "title": "DupeManager",
+                    "message": "¡Webhook de prueba enviado correctamente!",
+                    "priority": "normal",
+                    "tags": ["dupemanager", "test"],
+                },
+                timeout=10.0,
+            )
+            response.raise_for_status()
+        return {"success": True, "message": "Webhook enviado correctamente"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/notifications/test-email")
+async def test_email(user: dict = Depends(get_current_user)):
+    """Envía un email de prueba"""
+    settings = await get_all_settings()
+    
+    if not settings.get("notifications_email_enabled"):
+        return {"success": False, "error": "Email no está habilitado"}
+    
+    smtp_host = settings.get("notifications_email_smtp_host")
+    smtp_port = settings.get("notifications_email_smtp_port")
+    username = settings.get("notifications_email_username")
+    password = settings.get("notifications_email_password")
+    to_email = settings.get("notifications_email_to")
+    
+    if not all([smtp_host, username, password, to_email]):
+        return {"success": False, "error": "Configuración de email incompleta"}
+    
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        
+        msg = MIMEText("Este es un email de prueba de DupeManager.")
+        msg["Subject"] = "DupeManager - Prueba de email"
+        msg["From"] = username
+        msg["To"] = to_email
+        
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(username, password)
+            server.send_message(msg)
+        
+        return {"success": True, "message": "Email enviado correctamente"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
