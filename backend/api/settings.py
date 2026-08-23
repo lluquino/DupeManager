@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from backend.auth import get_current_user
 from backend.actions.trash import empty_trash, get_trash_info
 from backend.settings_service import get_all_settings, update_settings
+from backend.notifications.service import send_test_notification
 
 router = APIRouter()
 
@@ -31,7 +32,6 @@ async def update_settings_endpoint(body: dict, user: dict = Depends(get_current_
     settings_to_update = {}
     for key, value in body.items():
         if key in valid_keys:
-            # Convertir camelCase a snake_case
             snake_key = ''.join(['_' + c.lower() if c.isupper() else c for c in key]).lstrip('_')
             settings_to_update[snake_key] = value
     
@@ -75,65 +75,12 @@ async def rebuild_db(user: dict = Depends(get_current_user)):
 @router.post("/notifications/test-webhook")
 async def test_webhook(user: dict = Depends(get_current_user)):
     """Envía un webhook de prueba"""
-    settings = await get_all_settings()
-    
-    if not settings.get("notifications_webhook_enabled"):
-        return {"success": False, "error": "Webhook no está habilitado"}
-    
-    url = settings.get("notifications_webhook_url")
-    if not url:
-        return {"success": False, "error": "URL del webhook no configurada"}
-    
-    try:
-        import httpx
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                json={
-                    "title": "DupeManager",
-                    "message": "¡Webhook de prueba enviado correctamente!",
-                    "priority": "normal",
-                    "tags": ["dupemanager", "test"],
-                },
-                timeout=10.0,
-            )
-            response.raise_for_status()
-        return {"success": True, "message": "Webhook enviado correctamente"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    result = await send_test_notification("webhook")
+    return result
 
 
 @router.post("/notifications/test-email")
 async def test_email(user: dict = Depends(get_current_user)):
     """Envía un email de prueba"""
-    settings = await get_all_settings()
-    
-    if not settings.get("notifications_email_enabled"):
-        return {"success": False, "error": "Email no está habilitado"}
-    
-    smtp_host = settings.get("notifications_email_smtp_host")
-    smtp_port = settings.get("notifications_email_smtp_port")
-    username = settings.get("notifications_email_username")
-    password = settings.get("notifications_email_password")
-    to_email = settings.get("notifications_email_to")
-    
-    if not all([smtp_host, username, password, to_email]):
-        return {"success": False, "error": "Configuración de email incompleta"}
-    
-    try:
-        import smtplib
-        from email.mime.text import MIMEText
-        
-        msg = MIMEText("Este es un email de prueba de DupeManager.")
-        msg["Subject"] = "DupeManager - Prueba de email"
-        msg["From"] = username
-        msg["To"] = to_email
-        
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(username, password)
-            server.send_message(msg)
-        
-        return {"success": True, "message": "Email enviado correctamente"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    result = await send_test_notification("email")
+    return result
