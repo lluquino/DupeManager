@@ -330,7 +330,11 @@ async def run_full_scan(
     Returns:
         dict con estadísticas del escaneo completo
     """
-    from backend.jellyfin.client import jellyfin
+    from backend.config import settings
+    import httpx
+    
+    jellyfin_url = settings.jellyfin_url.rstrip("/")
+    api_key = settings.jellyfin_api_key
     
     stats = {
         "episodes": {"total": 0, "duplicates": 0, "groups": 0},
@@ -341,6 +345,7 @@ async def run_full_scan(
     
     async with async_session() as session:
         # Actualizar estado de escaneo (obtener o crear)
+        print("[SCAN] Starting full scan...", flush=True)
         result = await session.execute(select(ScanStatus).where(ScanStatus.id == 1))
         scan_status = result.scalar_one_or_none()
         if not scan_status:
@@ -354,35 +359,44 @@ async def run_full_scan(
         await session.commit()
         
         # Obtener todos los episodios
+        print("[SCAN] Fetching episodes from Jellyfin...", flush=True)
         all_episodes = []
         start_index = 0
         limit = 500
         
-        while True:
-            try:
-                result = await jellyfin.get_episodes(
-                    jellyfin_token,
-                    limit=limit,
-                    start_index=start_index,
-                )
-            except Exception as e:
-                print(f"Error fetching episodes: {e}")
-                break
-            
-            items = result.get("Items", [])
-            total = result.get("TotalRecordCount", 0)
-            
-            all_episodes.extend(items)
-            start_index += len(items)
-            
-            if start_index >= total:
-                break
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            while True:
+                try:
+                    params = {
+                        "api_key": api_key,
+                        "Recursive": "true",
+                        "IncludeItemTypes": "Episode",
+                        "Fields": "Path,MediaStreams,Size,ProductionYear,SeriesName,SeasonIndexNumber,IndexNumber,LocationType",
+                        "Limit": limit,
+                        "StartIndex": start_index,
+                    }
+                    response = await client.get(f"{jellyfin_url}/Items", params=params)
+                    response.raise_for_status()
+                    result = response.json()
+                    
+                    items = result.get("Items", [])
+                    total = result.get("TotalRecordCount", 0)
+                    all_episodes.extend(items)
+                    start_index += len(items)
+                    print(f"[SCAN] Episodes: {start_index}/{total}", flush=True)
+                    
+                    if start_index >= total:
+                        break
+                except Exception as e:
+                    print(f"[SCAN] Error fetching episodes: {e}", flush=True)
+                    break
         
+        print(f"[SCAN] Total episodes fetched: {len(all_episodes)}", flush=True)
         stats["episodes"]["total"] = len(all_episodes)
         
         # Escanear episodios
         def ep_progress(current, total, message):
-            progress = (current / total * 50) if total > 0 else 0  # 50% para episodios
+            progress = (current / total * 50) if total > 0 else 0
             if progress_callback:
                 progress_callback(progress, message)
         
@@ -395,34 +409,43 @@ async def run_full_scan(
         await session.commit()
         
         # Obtener todas las películas
+        print("[SCAN] Fetching movies from Jellyfin...", flush=True)
         all_movies = []
         start_index = 0
         
-        while True:
-            try:
-                result = await jellyfin.get_movies(
-                    jellyfin_token,
-                    limit=limit,
-                    start_index=start_index,
-                )
-            except Exception as e:
-                print(f"Error fetching movies: {e}")
-                break
-            
-            items = result.get("Items", [])
-            total = result.get("TotalRecordCount", 0)
-            
-            all_movies.extend(items)
-            start_index += len(items)
-            
-            if start_index >= total:
-                break
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            while True:
+                try:
+                    params = {
+                        "api_key": api_key,
+                        "Recursive": "true",
+                        "IncludeItemTypes": "Movie",
+                        "Fields": "Path,MediaStreams,Size,ProductionYear,LocationType",
+                        "Limit": limit,
+                        "StartIndex": start_index,
+                    }
+                    response = await client.get(f"{jellyfin_url}/Items", params=params)
+                    response.raise_for_status()
+                    result = response.json()
+                    
+                    items = result.get("Items", [])
+                    total = result.get("TotalRecordCount", 0)
+                    all_movies.extend(items)
+                    start_index += len(items)
+                    print(f"[SCAN] Movies: {start_index}/{total}", flush=True)
+                    
+                    if start_index >= total:
+                        break
+                except Exception as e:
+                    print(f"[SCAN] Error fetching movies: {e}", flush=True)
+                    break
         
+        print(f"[SCAN] Total movies fetched: {len(all_movies)}", flush=True)
         stats["movies"]["total"] = len(all_movies)
         
         # Escanear películas
         def movie_progress(current, total, message):
-            progress = 50 + (current / total * 50) if total > 0 else 50  # 50-100% para películas
+            progress = 50 + (current / total * 50) if total > 0 else 50
             if progress_callback:
                 progress_callback(progress, message)
         

@@ -87,13 +87,18 @@ class ScanQueue:
     async def _run_scan(self, jellyfin_token: str):
         """Ejecuta el escaneo en background"""
         try:
+            print(f"[QUEUE] Starting scan with token: {jellyfin_token[:20]}...", flush=True)
             self._result = await run_full_scan(
                 jellyfin_token,
                 progress_callback=self._progress_callback,
             )
+            print(f"[QUEUE] Scan completed: {self._result}", flush=True)
             self._message = "Escaneo completado"
             self._progress = 100.0
         except Exception as e:
+            import traceback
+            print(f"[QUEUE] Scan error: {e}", flush=True)
+            traceback.print_exc()
             self._error = str(e)
             self._message = f"Error: {e}"
         finally:
