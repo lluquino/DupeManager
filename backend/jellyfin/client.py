@@ -30,11 +30,12 @@ class JellyfinClient:
         # Añadir Authorization header
         if token:
             headers["X-Emby-Token"] = token
-        elif use_api_key and self.api_key:
-            # Usar api_key como header si no hay token de usuario
-            pass  # api_key va como query param
         
         headers["X-Emby-Authorization"] = 'MediaBrowser Client="DupeManager", Device="Linux", DeviceId="dupemanager", Version="1.0.0"'
+
+        # Si hay body JSON, asegurar Content-Type
+        if "json" in kwargs:
+            headers["Content-Type"] = "application/json"
 
         url = f"{self.base_url}{path}"
 
